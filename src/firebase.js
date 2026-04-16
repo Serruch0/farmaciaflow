@@ -1,19 +1,13 @@
-// ─────────────────────────────────────────────────────────────
-// PASO 1: Sustituye estos valores por los de tu proyecto Firebase
-// Ve a: console.firebase.google.com → Tu proyecto → Configuración
-// → "Tus aplicaciones" → SDK de configuración → Config
-// ─────────────────────────────────────────────────────────────
-
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "PEGA_AQUI_TU_apiKey",
-  authDomain: "PEGA_AQUI_TU_authDomain",
-  projectId: "PEGA_AQUI_TU_projectId",
-  storageBucket: "PEGA_AQUI_TU_storageBucket",
-  messagingSenderId: "PEGA_AQUI_TU_messagingSenderId",
-  appId: "PEGA_AQUI_TU_appId"
+  apiKey: "AIzaSyBaUffEO5agx4zNt_iZ6eWUOMjtVl2YyPY",
+  authDomain: "farmaciaflow.firebaseapp.com",
+  projectId: "farmaciaflow",
+  storageBucket: "farmaciaflow.firebasestorage.app",
+  messagingSenderId: "903420291242",
+  appId: "1:903420291242:web:7c4d08d2ac8d150ffd08d3"
 };
 
 const app = initializeApp(firebaseConfig);
