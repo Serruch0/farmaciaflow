@@ -76,6 +76,7 @@ export default function App() {
   const [historial, setHistorial] = useState([]);
   const [savedMsg, setSavedMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
 
   // ── CARGAR DATOS DEL DÍA ACTUAL DESDE FIREBASE ──
   useEffect(() => {
@@ -109,6 +110,16 @@ export default function App() {
     }
     setSaving(false);
     setTimeout(() => setSavedMsg(""), 3000);
+  };
+
+  const deleteDay = async (id) => {
+    if (!window.confirm("¿Seguro que quieres borrar esta jornada?")) return;
+    try {
+      await deleteDoc(doc(db, "jornadas", id));
+      setSelectedDay(null);
+    } catch (e) {
+      alert("Error al borrar. Inténtalo de nuevo.");
+    }
   };
 
   const updateDay = (key, value) => setDayData(prev => ({ ...prev, [key]: value }));
@@ -422,27 +433,156 @@ export default function App() {
   );
 
   // ── HISTORIAL ─────────────────────────────────────────────
-  const renderHistorial = () => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>📋 Historial de jornadas</h2>
-      {historial.length === 0 && <EmptyState text="Aún no hay jornadas guardadas" />}
-      {historial.map((day) => (
-        <Card key={day.id} style={{ borderLeft: "4px solid #6366f1" }}>
-          <div style={{ fontWeight: 700, color: "#6366f1", fontSize: 14 }}>{day.fecha || day.fechaKey}</div>
-          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-            {day.turno && <Badge text={day.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}
-            {day.responsable && <Badge text={`👤 ${day.responsable}`} color="#8b5cf6" />}
-            <Badge text={`📦 ${(day.pedidos || []).length} pedidos`} color="#6366f1" />
-            <Badge text={`⚠️ ${(day.incidencias || []).length} incid.`} color="#f59e0b" />
-            <Badge text={`💊 ${(day.encargos || []).length + (day.vacunas || []).length + (day.formulasMagistrales || []).length} encargos`} color="#10b981" />
+  const renderHistorial = () => {
+    if (selectedDay) {
+      const d = selectedDay;
+      const tareasDone = [d.stocks, d.caducidades, d.almacenArreglado, d.repuestoFuera, d.repuestoDentro, d.ordenadoAlmacen, d.bajadoCajas, d.limpieza?.hecho].filter(Boolean).length;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button onClick={() => setSelectedDay(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#64748b" }}>← Volver</button>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", flex: 1 }}>{d.fecha || d.fechaKey}</h2>
+            <button onClick={() => deleteDay(d.id)} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#ef4444" }}>🗑 Borrar</button>
           </div>
-          {day.equipoPresente?.length > 0 && (
-            <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>👥 {day.equipoPresente.join(", ")}</div>
+
+          <Card>
+            <SectionTitle icon="📋">Resumen del turno</SectionTitle>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {d.turno && <Badge text={d.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}
+              {d.responsable && <Badge text={`👤 ${d.responsable}`} color="#8b5cf6" />}
+              <Badge text={`✅ ${tareasDone}/8 tareas`} color="#10b981" />
+            </div>
+            {d.equipoPresente?.length > 0 && <div style={{ marginTop: 10, fontSize: 13, color: "#64748b" }}>👥 {d.equipoPresente.join(", ")}</div>}
+          </Card>
+
+          {(d.pedidos || []).length > 0 && (
+            <Card>
+              <SectionTitle icon="📦">Pedidos ({d.pedidos.length})</SectionTitle>
+              {d.pedidos.map((p, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b" }}>{p.proveedor}</div>
+                  {p.descripcion && <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{p.descripcion}</div>}
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    <Badge text={p.estado} color={colorEstado[p.estado] || "#6366f1"} />
+                    {p.responsable && <Badge text={p.responsable} color="#8b5cf6" />}
+                    {p.incidencia && <Badge text="⚠️ Incidencia" color="#ef4444" />}
+                  </div>
+                  {p.incidencia && p.notaIncidencia && <div style={{ marginTop: 6, fontSize: 13, color: "#dc2626" }}>🔴 {p.notaIncidencia}</div>}
+                </div>
+              ))}
+            </Card>
           )}
-        </Card>
-      ))}
-    </div>
-  );
+
+          {(d.incidencias || []).length > 0 && (
+            <Card>
+              <SectionTitle icon="⚠️">Incidencias ({d.incidencias.length})</SectionTitle>
+              {d.incidencias.map((inc, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#fffbeb", borderRadius: 10, marginBottom: 8, borderLeft: "3px solid #f59e0b" }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#92400e" }}>{inc.tipo}</div>
+                  <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>{inc.descripcion}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    {inc.responsable && <Badge text={inc.responsable} color="#8b5cf6" />}
+                    {inc.resuelta && <Badge text="✓ Resuelta" color="#10b981" />}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {((d.encargos || []).length > 0 || (d.vacunas || []).length > 0 || (d.formulasMagistrales || []).length > 0) && (
+            <Card>
+              <SectionTitle icon="💊">Encargos</SectionTitle>
+              {(d.encargos || []).map((e, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b" }}>🧪 {e.descripcion}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    {e.cliente && <Badge text={`👤 ${e.cliente}`} color="#6366f1" />}
+                    {e.estado && <Badge text={e.estado} color="#f59e0b" />}
+                  </div>
+                </div>
+              ))}
+              {(d.vacunas || []).map((v, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#eff6ff", borderRadius: 10, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b" }}>💉 {v.vacuna}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    {v.cliente && <Badge text={`👤 ${v.cliente}`} color="#3b82f6" />}
+                    {v.dosis && <Badge text={v.dosis} color="#6366f1" />}
+                    {v.estado && <Badge text={v.estado} color="#f59e0b" />}
+                  </div>
+                </div>
+              ))}
+              {(d.formulasMagistrales || []).map((f, i) => (
+                <div key={i} style={{ padding: "10px 14px", background: "#f0fdf4", borderRadius: 10, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1e293b" }}>⚗️ {f.formula}</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    {f.cliente && <Badge text={`👤 ${f.cliente}`} color="#10b981" />}
+                    {f.laboratorio && <Badge text={f.laboratorio} color="#6366f1" />}
+                    {f.estado && <Badge text={f.estado} color="#f59e0b" />}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          <Card>
+            <SectionTitle icon="✅">Tareas realizadas</SectionTitle>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                { label: "Limpieza", done: d.limpieza?.hecho },
+                { label: "Repuesto desde fuera", done: d.repuestoFuera },
+                { label: "Repuesto desde dentro", done: d.repuestoDentro },
+                { label: "Almacén arreglado", done: d.almacenArreglado },
+                { label: "Ordenado almacén", done: d.ordenadoAlmacen },
+                { label: "Bajado cajas", done: d.bajadoCajas },
+                { label: "Control de stocks", done: d.stocks },
+                { label: "Revisión caducidades", done: d.caducidades },
+              ].map(({ label, done }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: done ? "#065f46" : "#94a3b8" }}>
+                  <span>{done ? "✅" : "⬜"}</span>{label}
+                </div>
+              ))}
+              {d.limpieza?.zonas?.length > 0 && (
+                <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>
+                  🧹 Zonas: {d.limpieza.zonas.join(", ")}
+                </div>
+              )}
+              {d.limpieza?.notas && (
+                <div style={{ marginTop: 4, fontSize: 13, color: "#64748b" }}>
+                  📝 {d.limpieza.notas}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 800, color: "#1e293b" }}>📋 Historial de jornadas</h2>
+        {historial.length === 0 && <EmptyState text="Aún no hay jornadas guardadas" />}
+        {historial.map((day) => (
+          <Card key={day.id} style={{ borderLeft: "4px solid #6366f1", cursor: "pointer" }} >
+            <div onClick={() => setSelectedDay(day)}>
+              <div style={{ fontWeight: 700, color: "#6366f1", fontSize: 14 }}>{day.fecha || day.fechaKey}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                {day.turno && <Badge text={day.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}
+                {day.responsable && <Badge text={`👤 ${day.responsable}`} color="#8b5cf6" />}
+                <Badge text={`📦 ${(day.pedidos || []).length} pedidos`} color="#6366f1" />
+                <Badge text={`⚠️ ${(day.incidencias || []).length} incid.`} color="#f59e0b" />
+                <Badge text={`💊 ${(day.encargos || []).length + (day.vacunas || []).length + (day.formulasMagistrales || []).length} encargos`} color="#10b981" />
+              </div>
+              {day.equipoPresente?.length > 0 && (
+                <div style={{ marginTop: 8, fontSize: 13, color: "#64748b" }}>👥 {day.equipoPresente.join(", ")}</div>
+              )}
+              <div style={{ marginTop: 10, fontSize: 12, color: "#a5b4fc", fontWeight: 600 }}>Toca para ver el detalle →</div>
+            </div>
+            <button onClick={() => deleteDay(day.id)} style={{ marginTop: 10, background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444" }}>🗑 Borrar jornada</button>
+          </Card>
+        ))}
+      </div>
+    );
+  };
 
   // ── MODAL ─────────────────────────────────────────────────
   const renderModal = () => {
