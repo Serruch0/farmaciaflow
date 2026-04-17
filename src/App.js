@@ -4,10 +4,12 @@ import {
   collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, addDoc, serverTimestamp
 } from "firebase/firestore";
 
+
 const EQUIPO = ["Elisa", "Laura", "Irene", "Gonzalo", "Andrea", "Rocío", "Victoria", "Esther", "Antonio"];
 const ZONAS_LIMPIEZA = ["Mostrador", "Almacén", "Sala trasera", "Baño", "Zona fría", "Escaparate", "Suelo general"];
 const ESTADOS_PEDIDO = ["Recibido", "Gestionado", "Metido"];
 const colorEstado = { "Recibido": "#f59e0b", "Gestionado": "#3b82f6", "Metido": "#10b981" };
+const PIN_CORRECTO = "1234"; // ← CAMBIA ESTE PIN POR EL QUE QUIERAS
 const todayKey = () => new Date().toISOString().slice(0, 10);
 const todayLabel = () => new Date().toLocaleDateString("es-ES", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 const emptyDay = () => ({
@@ -18,6 +20,7 @@ const emptyDay = () => ({
   turno: "mañana", responsable: "", equipoPresente: [], notaTraspaso: "",
   fecha: todayLabel(), fechaKey: todayKey(),
 });
+
 const inputStyle = { padding: "10px 12px", border: "2px solid #e2e8f0", borderRadius: 10, fontSize: 14, fontFamily: "inherit", color: "#1e293b", background: "#f8fafc", outline: "none" };
 const addBtnStyle = { padding: "8px 16px", background: "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
 const deleteBtnStyle = { width: 28, height: 28, borderRadius: 8, border: "none", background: "#fee2e2", color: "#ef4444", cursor: "pointer", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
@@ -27,7 +30,80 @@ const Card = ({ children, style = {} }) => (<div style={{ background: "#fff", bo
 const SectionTitle = ({ children, icon }) => (<h3 style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}><span>{icon}</span>{children}</h3>);
 const Pill = ({ label, onClick, active }) => (<button onClick={onClick} style={{ padding: "5px 13px", borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: "pointer", background: active ? "#6366f1" : "#f1f5f9", color: active ? "#fff" : "#64748b", border: "none", transition: "all 0.2s", fontFamily: "inherit" }}>{label}</button>);
 
+// ── PANTALLA DE PIN ──────────────────────────────────────────
+function PinScreen({ onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const handleKey = (k) => {
+    if (k === "del") { setPin(p => p.slice(0, -1)); setError(""); return; }
+    const next = pin + k;
+    setPin(next);
+    if (next.length === 4) {
+      if (next === PIN_CORRECTO) { onUnlock(); }
+      else { setError("PIN incorrecto"); setTimeout(() => { setPin(""); setError(""); }, 800); }
+    }
+  };
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", fontFamily: "'DM Sans','Segoe UI',sans-serif" }}>
+      <div style={{ background: "#fff", borderRadius: 24, padding: 40, width: 300, textAlign: "center", boxShadow: "0 20px 60px #0003" }}>
+        <div style={{ fontSize: 40, marginBottom: 8 }}>💊</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#1e293b", marginBottom: 4 }}>FarmaciaFlow</div>
+        <div style={{ fontSize: 14, color: "#94a3b8", marginBottom: 28 }}>Introduce el PIN de acceso</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 24 }}>
+          {[0,1,2,3].map(i => (<div key={i} style={{ width: 16, height: 16, borderRadius: "50%", background: pin.length > i ? "#6366f1" : "#e2e8f0", transition: "background 0.2s" }} />))}
+        </div>
+        {error && <div style={{ color: "#ef4444", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{error}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {["1","2","3","4","5","6","7","8","9","","0","del"].map((k, i) => (
+            k === "" ? <div key={i} /> :
+            <button key={i} onClick={() => handleKey(k)} style={{ padding: "16px 0", borderRadius: 12, border: "none", background: k === "del" ? "#fee2e2" : "#f8fafc", color: k === "del" ? "#ef4444" : "#1e293b", fontSize: k === "del" ? 18 : 20, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s" }}>
+              {k === "del" ? "⌫" : k}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── COMPONENTE SUBIDA DE FOTO (base64) ──────────────────────
+function FotoUploader({ fotos = [], onChange }) {
+  const [loading, setLoading] = useState(false);
+  const fileRef = useRef();
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert("La foto es demasiado grande. Máximo 2MB."); return; }
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      onChange([...fotos, ev.target.result]);
+      setLoading(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+  return (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: fotos.length > 0 ? 10 : 0 }}>
+        {fotos.map((url, i) => (
+          <div key={i} style={{ position: "relative" }}>
+            <img src={url} alt="foto" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10, border: "2px solid #e2e8f0" }} onClick={() => window.open(url)} />
+            <button onClick={() => onChange(fotos.filter((_, j) => j !== i))} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: "50%", background: "#ef4444", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>✕</button>
+          </div>
+        ))}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: "none" }} />
+      <button onClick={() => fileRef.current.click()} disabled={loading} style={{ padding: "8px 14px", background: loading ? "#e2e8f0" : "#f0fdf4", border: "2px solid #bbf7d0", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer", color: "#16a34a", fontFamily: "inherit" }}>
+        {loading ? "⏳ Procesando..." : "📸 Añadir foto"}
+      </button>
+    </div>
+  );
+}
+
+// ── APP PRINCIPAL ────────────────────────────────────────────
 export default function App() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("ff_unlocked") === "1");
   const [activeTab, setActiveTab] = useState("resumen");
   const [dayData, setDayData] = useState(emptyDay());
   const [showModal, setShowModal] = useState(null);
@@ -43,27 +119,34 @@ export default function App() {
   const [chatUser, setChatUser] = useState("");
   const chatEndRef = useRef(null);
 
+  const handleUnlock = () => { sessionStorage.setItem("ff_unlocked", "1"); setUnlocked(true); };
+
   useEffect(() => {
+    if (!unlocked) return;
     const unsub = onSnapshot(doc(db, "jornadas", todayKey()), (snap) => {
       if (snap.exists()) setDayData({ ...emptyDay(), ...snap.data() });
     });
     return () => unsub();
-  }, []);
+  }, [unlocked]);
 
   useEffect(() => {
+    if (!unlocked) return;
     const q = query(collection(db, "jornadas"), orderBy("fechaKey", "desc"));
     const unsub = onSnapshot(q, (snap) => { setHistorial(snap.docs.map(d => ({ id: d.id, ...d.data() }))); });
     return () => unsub();
-  }, []);
+  }, [unlocked]);
 
   useEffect(() => {
+    if (!unlocked) return;
     const q = query(collection(db, "chat"), orderBy("timestamp", "asc"));
     const unsub = onSnapshot(q, (snap) => {
       setChatMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     });
     return () => unsub();
-  }, []);
+  }, [unlocked]);
+
+  if (!unlocked) return <PinScreen onUnlock={handleUnlock} />;
 
   const saveDay = async () => {
     setSaving(true);
@@ -143,12 +226,7 @@ export default function App() {
       {pendientes.length > 0 && (
         <Card style={{ borderLeft: "4px solid #ef4444", background: "#fef2f2" }}>
           <SectionTitle icon="🔔">Pendientes de días anteriores</SectionTitle>
-          {pendientes.map((p, i) => (
-            <div key={i} style={{ padding: "8px 12px", background: "#fff", borderRadius: 10, marginBottom: 8, fontSize: 13 }}>
-              <div style={{ fontWeight: 700, color: "#1e293b" }}>{p.tipo === "encargo" ? "🧪 " : p.tipo === "vacuna" ? "💉 " : "⚗️ "}{p.descripcion || p.vacuna || p.formula}</div>
-              <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>{p.cliente && <Badge text={`👤 ${p.cliente}`} color="#6366f1" />}{p.estado && <Badge text={p.estado} color="#f59e0b" />}<Badge text={p.fecha} color="#94a3b8" /></div>
-            </div>
-          ))}
+          {pendientes.map((p, i) => (<div key={i} style={{ padding: "8px 12px", background: "#fff", borderRadius: 10, marginBottom: 8, fontSize: 13 }}><div style={{ fontWeight: 700, color: "#1e293b" }}>{p.tipo === "encargo" ? "🧪 " : p.tipo === "vacuna" ? "💉 " : "⚗️ "}{p.descripcion || p.vacuna || p.formula}</div><div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>{p.cliente && <Badge text={`👤 ${p.cliente}`} color="#6366f1" />}{p.estado && <Badge text={p.estado} color="#f59e0b" />}<Badge text={p.fecha} color="#94a3b8" /></div></div>))}
         </Card>
       )}
       <Card>
@@ -170,6 +248,7 @@ export default function App() {
       </div>
       <button onClick={saveDay} disabled={saving} style={{ background: saving ? "#a5b4fc" : "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", border: "none", borderRadius: 12, padding: "14px 20px", fontSize: 15, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", boxShadow: "0 4px 16px #6366f144" }}>{saving ? "⏳ Guardando..." : "💾 Guardar jornada"}</button>
       {savedMsg && <div style={{ textAlign: "center", color: savedMsg.startsWith("✓") ? "#10b981" : "#ef4444", fontWeight: 700, fontSize: 15 }}>{savedMsg}</div>}
+      <button onClick={() => { sessionStorage.removeItem("ff_unlocked"); setUnlocked(false); }} style={{ background: "none", border: "none", color: "#cbd5e1", fontSize: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}>🔒 Bloquear app</button>
     </div>
   );
 
@@ -185,6 +264,7 @@ export default function App() {
               {p.descripcion && <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>{p.descripcion}</div>}
               <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}><Badge text={p.estado} color={colorEstado[p.estado] || "#6366f1"} />{p.responsable && <Badge text={p.responsable} color="#8b5cf6" />}{p.incidencia && <Badge text="⚠️ Con incidencia" color="#ef4444" />}</div>
               {p.incidencia && p.notaIncidencia && <div style={{ marginTop: 8, padding: "8px 12px", background: "#fef2f2", borderRadius: 8, color: "#dc2626", fontSize: 13 }}>🔴 {p.notaIncidencia}</div>}
+              {(p.fotos || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>{p.fotos.map((url, i) => <img key={i} src={url} alt="foto" onClick={() => window.open(url)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, cursor: "pointer", border: "2px solid #e2e8f0" }} />)}</div>}
             </div>
             <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
               <button onClick={() => openModal("pedido", p)} style={{ ...deleteBtnStyle, background: "#eff6ff", color: "#3b82f6" }}>✏️</button>
@@ -203,8 +283,16 @@ export default function App() {
       {dayData.incidencias.map(inc => (
         <Card key={inc.id} style={{ borderLeft: "4px solid #f59e0b" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div><div style={{ fontWeight: 700, color: "#92400e", fontSize: 15 }}>{inc.tipo}</div><div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>{inc.descripcion}</div><div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{inc.turno && <Badge text={inc.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}{inc.responsable && <Badge text={inc.responsable} color="#8b5cf6" />}{inc.resuelta && <Badge text="✓ Resuelta" color="#10b981" />}</div></div>
-            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}><button onClick={() => openModal("incidencia", inc)} style={{ ...deleteBtnStyle, background: "#eff6ff", color: "#3b82f6" }}>✏️</button><button onClick={() => removeItem("incidencias", inc.id)} style={deleteBtnStyle}>✕</button></div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, color: "#92400e", fontSize: 15 }}>{inc.tipo}</div>
+              <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>{inc.descripcion}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{inc.turno && <Badge text={inc.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}{inc.responsable && <Badge text={inc.responsable} color="#8b5cf6" />}{inc.resuelta && <Badge text="✓ Resuelta" color="#10b981" />}</div>
+              {(inc.fotos || []).length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>{inc.fotos.map((url, i) => <img key={i} src={url} alt="foto" onClick={() => window.open(url)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, cursor: "pointer", border: "2px solid #e2e8f0" }} />)}</div>}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button onClick={() => openModal("incidencia", inc)} style={{ ...deleteBtnStyle, background: "#eff6ff", color: "#3b82f6" }}>✏️</button>
+              <button onClick={() => removeItem("incidencias", inc.id)} style={deleteBtnStyle}>✕</button>
+            </div>
           </div>
         </Card>
       ))}
@@ -241,20 +329,11 @@ export default function App() {
           const pct = Math.round((tareas / 8) * 100);
           const isToday = day.fechaKey === todayKey();
           return (
-            <Card key={day.id} style={{ borderLeft: `4px solid ${isToday ? "#6366f1" : "#e2e8f0"}`, cursor: "pointer" }} >
+            <Card key={day.id} style={{ borderLeft: `4px solid ${isToday ? "#6366f1" : "#e2e8f0"}`, cursor: "pointer" }}>
               <div onClick={() => { setSelectedDay(day); setActiveTab("historial"); }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontWeight: 700, color: isToday ? "#6366f1" : "#1e293b", fontSize: 14 }}>{isToday ? "🔵 Hoy — " : ""}{day.fecha || day.fechaKey}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: pct === 100 ? "#10b981" : "#f59e0b" }}>{pct}% tareas</div>
-                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontWeight: 700, color: isToday ? "#6366f1" : "#1e293b", fontSize: 14 }}>{isToday ? "🔵 Hoy — " : ""}{day.fecha || day.fechaKey}</div><div style={{ fontSize: 12, fontWeight: 700, color: pct === 100 ? "#10b981" : "#f59e0b" }}>{pct}% tareas</div></div>
                 <div style={{ background: "#e2e8f0", borderRadius: 20, height: 6, overflow: "hidden", marginTop: 8 }}><div style={{ width: `${pct}%`, height: "100%", background: pct === 100 ? "#10b981" : "linear-gradient(90deg, #6366f1, #818cf8)", borderRadius: 20 }} /></div>
-                <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                  {day.turno && <Badge text={day.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}
-                  {day.responsable && <Badge text={`👤 ${day.responsable}`} color="#8b5cf6" />}
-                  <Badge text={`📦 ${(day.pedidos || []).length}`} color="#6366f1" />
-                  <Badge text={`⚠️ ${(day.incidencias || []).length}`} color="#f59e0b" />
-                  <Badge text={`💊 ${(day.encargos || []).length + (day.vacunas || []).length + (day.formulasMagistrales || []).length}`} color="#10b981" />
-                </div>
+                <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>{day.turno && <Badge text={day.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}{day.responsable && <Badge text={`👤 ${day.responsable}`} color="#8b5cf6" />}<Badge text={`📦 ${(day.pedidos || []).length}`} color="#6366f1" /><Badge text={`⚠️ ${(day.incidencias || []).length}`} color="#f59e0b" /><Badge text={`💊 ${(day.encargos || []).length + (day.vacunas || []).length + (day.formulasMagistrales || []).length}`} color="#10b981" /></div>
                 {day.notaTraspaso && <div style={{ marginTop: 8, padding: "6px 10px", background: "#fffbeb", borderRadius: 8, fontSize: 12, color: "#92400e" }}>📝 {day.notaTraspaso}</div>}
                 <div style={{ marginTop: 8, fontSize: 12, color: "#a5b4fc", fontWeight: 600 }}>Toca para ver el detalle →</div>
               </div>
@@ -297,104 +376,13 @@ export default function App() {
       const HCheckBox = ({ label, checked, onChange }) => (<button onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: checked ? "#d1fae5" : "#fff", border: `2px solid ${checked ? "#10b981" : "#e2e8f0"}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: checked ? "#065f46" : "#475569", fontWeight: checked ? 600 : 400, width: "100%", textAlign: "left" }}><span style={{ fontSize: 18 }}>{checked ? "✅" : "⬜"}</span>{label}</button>);
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button onClick={() => setEditingHistorialDay(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#64748b" }}>← Cancelar</button>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", flex: 1 }}>✏️ Editar jornada</h2>
-          </div>
-
-          {/* TURNO Y RESPONSABLE */}
-          <Card>
-            <SectionTitle icon="📋">Datos del turno</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <select value={d.turno || "mañana"} onChange={e => updateH("turno", e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>
-                <option value="mañana">☀️ Turno mañana</option>
-                <option value="tarde">🌙 Turno tarde</option>
-              </select>
-              <select value={d.responsable || ""} onChange={e => updateH("responsable", e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>
-                <option value="">👤 Responsable</option>
-                {EQUIPO.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>Equipo presente:</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {EQUIPO.map(nombre => { const active = (d.equipoPresente || []).includes(nombre); return (<button key={nombre} onClick={() => { const p = d.equipoPresente || []; updateH("equipoPresente", active ? p.filter(n => n !== nombre) : [...p, nombre]); }} style={{ padding: "6px 14px", borderRadius: 30, fontSize: 13, fontWeight: 600, cursor: "pointer", background: active ? "#6366f1" : "#f8fafc", color: active ? "#fff" : "#64748b", border: `2px solid ${active ? "#6366f1" : "#e2e8f0"}`, fontFamily: "inherit" }}>{nombre}</button>); })}
-              </div>
-              <textarea value={d.notaTraspaso || ""} onChange={e => updateH("notaTraspaso", e.target.value)} placeholder="Nota de traspaso..." rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
-            </div>
-          </Card>
-
-          {/* PEDIDOS */}
-          <Card>
-            <SectionTitle icon="📦">Pedidos</SectionTitle>
-            {(d.pedidos || []).map((p, i) => (
-              <div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <input value={p.proveedor || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], proveedor: e.target.value }; updateH("pedidos", arr); }} placeholder="Proveedor" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
-                  <input value={p.descripcion || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], descripcion: e.target.value }; updateH("pedidos", arr); }} placeholder="Descripción" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
-                  <select value={p.estado || "Recibido"} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], estado: e.target.value }; updateH("pedidos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>{ESTADOS_PEDIDO.map(o => <option key={o} value={o}>{o}</option>)}</select>
-                  <button onClick={() => updateH("pedidos", d.pedidos.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button>
-                </div>
-              </div>
-            ))}
-            <button onClick={() => updateH("pedidos", [...(d.pedidos || []), { id: Date.now(), proveedor: "", descripcion: "", estado: "Recibido" }])} style={addBtnStyle}>+ Añadir pedido</button>
-          </Card>
-
-          {/* INCIDENCIAS */}
-          <Card>
-            <SectionTitle icon="⚠️">Incidencias</SectionTitle>
-            {(d.incidencias || []).map((inc, i) => (
-              <div key={i} style={{ padding: "10px 14px", background: "#fffbeb", borderRadius: 10, marginBottom: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <select value={inc.tipo || ""} onChange={e => { const arr = [...d.incidencias]; arr[i] = { ...arr[i], tipo: e.target.value }; updateH("incidencias", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Tipo...</option>{["Cliente","Stock","Proveedor","Técnica","Personal","Otro"].map(o => <option key={o} value={o}>{o}</option>)}</select>
-                  <textarea value={inc.descripcion || ""} onChange={e => { const arr = [...d.incidencias]; arr[i] = { ...arr[i], descripcion: e.target.value }; updateH("incidencias", arr); }} placeholder="Descripción" rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
-                  <button onClick={() => updateH("incidencias", d.incidencias.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button>
-                </div>
-              </div>
-            ))}
-            <button onClick={() => updateH("incidencias", [...(d.incidencias || []), { id: Date.now(), tipo: "", descripcion: "" }])} style={addBtnStyle}>+ Añadir incidencia</button>
-          </Card>
-
-          {/* ENCARGOS */}
-          <Card>
-            <SectionTitle icon="💊">Encargos</SectionTitle>
-            {(d.encargos || []).map((e, i) => (
-              <div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <input value={e.descripcion || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], descripcion: ev.target.value }; updateH("encargos", arr); }} placeholder="Descripción" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
-                  <input value={e.cliente || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], cliente: ev.target.value }; updateH("encargos", arr); }} placeholder="Cliente" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
-                  <select value={e.estado || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], estado: ev.target.value }; updateH("encargos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Estado...</option>{["Pendiente","En gestión","Listo","Entregado"].map(o => <option key={o} value={o}>{o}</option>)}</select>
-                  <button onClick={() => updateH("encargos", d.encargos.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button>
-                </div>
-              </div>
-            ))}
-            <button onClick={() => updateH("encargos", [...(d.encargos || []), { id: Date.now(), descripcion: "", cliente: "", estado: "Pendiente" }])} style={addBtnStyle}>+ Añadir encargo</button>
-          </Card>
-
-          {/* TAREAS */}
-          <Card>
-            <SectionTitle icon="✅">Tareas</SectionTitle>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <HCheckBox label="Limpieza realizada" checked={d.limpieza?.hecho || false} onChange={v => updateHL("hecho", v)} />
-              {d.limpieza?.hecho && (
-                <div style={{ paddingLeft: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>Zonas:</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>{ZONAS_LIMPIEZA.map(zona => (<Pill key={zona} label={zona} active={(d.limpieza?.zonas || []).includes(zona)} onClick={() => toggleHL(zona)} />))}</div>
-                  <textarea value={d.limpieza?.notas || ""} onChange={e => updateHL("notas", e.target.value)} placeholder="Notas de limpieza..." rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
-                </div>
-              )}
-              <HCheckBox label="Repuesto desde fuera" checked={d.repuestoFuera || false} onChange={v => updateH("repuestoFuera", v)} />
-              <HCheckBox label="Repuesto desde dentro" checked={d.repuestoDentro || false} onChange={v => updateH("repuestoDentro", v)} />
-              <HCheckBox label="Almacén arreglado" checked={d.almacenArreglado || false} onChange={v => updateH("almacenArreglado", v)} />
-              <HCheckBox label="Ordenado el almacén" checked={d.ordenadoAlmacen || false} onChange={v => updateH("ordenadoAlmacen", v)} />
-              <HCheckBox label="Bajado cajas" checked={d.bajadoCajas || false} onChange={v => updateH("bajadoCajas", v)} />
-              <HCheckBox label="Control de stocks" checked={d.stocks || false} onChange={v => updateH("stocks", v)} />
-              <HCheckBox label="Revisión de caducidades" checked={d.caducidades || false} onChange={v => updateH("caducidades", v)} />
-            </div>
-          </Card>
-
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={() => setEditingHistorialDay(null)} style={{ flex: 1, padding: 12, border: "2px solid #e2e8f0", borderRadius: 10, background: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer", color: "#64748b" }}>Cancelar</button>
-            <button onClick={() => saveHistorialDay(d.id, d)} style={{ flex: 2, padding: 12, border: "none", borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar cambios</button>
-          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}><button onClick={() => setEditingHistorialDay(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#64748b" }}>← Cancelar</button><h2 style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", flex: 1 }}>✏️ Editar jornada</h2></div>
+          <Card><SectionTitle icon="📋">Datos del turno</SectionTitle><div style={{ display: "flex", flexDirection: "column", gap: 10 }}><select value={d.turno || "mañana"} onChange={e => updateH("turno", e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="mañana">☀️ Turno mañana</option><option value="tarde">🌙 Turno tarde</option></select><select value={d.responsable || ""} onChange={e => updateH("responsable", e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">👤 Responsable</option>{EQUIPO.map(n => <option key={n} value={n}>{n}</option>)}</select><div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>Equipo presente:</div><div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{EQUIPO.map(nombre => { const active = (d.equipoPresente || []).includes(nombre); return (<button key={nombre} onClick={() => { const p = d.equipoPresente || []; updateH("equipoPresente", active ? p.filter(n => n !== nombre) : [...p, nombre]); }} style={{ padding: "6px 14px", borderRadius: 30, fontSize: 13, fontWeight: 600, cursor: "pointer", background: active ? "#6366f1" : "#f8fafc", color: active ? "#fff" : "#64748b", border: `2px solid ${active ? "#6366f1" : "#e2e8f0"}`, fontFamily: "inherit" }}>{nombre}</button>); })}</div><textarea value={d.notaTraspaso || ""} onChange={e => updateH("notaTraspaso", e.target.value)} placeholder="Nota de traspaso..." rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} /></div></Card>
+          <Card><SectionTitle icon="📦">Pedidos</SectionTitle>{(d.pedidos || []).map((p, i) => (<div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 10 }}><div style={{ display: "flex", flexDirection: "column", gap: 6 }}><input value={p.proveedor || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], proveedor: e.target.value }; updateH("pedidos", arr); }} placeholder="Proveedor" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} /><input value={p.descripcion || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], descripcion: e.target.value }; updateH("pedidos", arr); }} placeholder="Descripción" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} /><select value={p.estado || "Recibido"} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], estado: e.target.value }; updateH("pedidos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>{ESTADOS_PEDIDO.map(o => <option key={o} value={o}>{o}</option>)}</select><button onClick={() => updateH("pedidos", d.pedidos.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button></div></div>))}<button onClick={() => updateH("pedidos", [...(d.pedidos || []), { id: Date.now(), proveedor: "", descripcion: "", estado: "Recibido" }])} style={addBtnStyle}>+ Añadir pedido</button></Card>
+          <Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{(d.incidencias || []).map((inc, i) => (<div key={i} style={{ padding: "10px 14px", background: "#fffbeb", borderRadius: 10, marginBottom: 10 }}><div style={{ display: "flex", flexDirection: "column", gap: 6 }}><select value={inc.tipo || ""} onChange={e => { const arr = [...d.incidencias]; arr[i] = { ...arr[i], tipo: e.target.value }; updateH("incidencias", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Tipo...</option>{["Cliente","Stock","Proveedor","Técnica","Personal","Otro"].map(o => <option key={o} value={o}>{o}</option>)}</select><textarea value={inc.descripcion || ""} onChange={e => { const arr = [...d.incidencias]; arr[i] = { ...arr[i], descripcion: e.target.value }; updateH("incidencias", arr); }} placeholder="Descripción" rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} /><button onClick={() => updateH("incidencias", d.incidencias.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button></div></div>))}<button onClick={() => updateH("incidencias", [...(d.incidencias || []), { id: Date.now(), tipo: "", descripcion: "" }])} style={addBtnStyle}>+ Añadir incidencia</button></Card>
+          <Card><SectionTitle icon="💊">Encargos</SectionTitle>{(d.encargos || []).map((e, i) => (<div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 10 }}><div style={{ display: "flex", flexDirection: "column", gap: 6 }}><input value={e.descripcion || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], descripcion: ev.target.value }; updateH("encargos", arr); }} placeholder="Descripción" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} /><input value={e.cliente || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], cliente: ev.target.value }; updateH("encargos", arr); }} placeholder="Cliente" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} /><select value={e.estado || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], estado: ev.target.value }; updateH("encargos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Estado...</option>{["Pendiente","En gestión","Listo","Entregado"].map(o => <option key={o} value={o}>{o}</option>)}</select><button onClick={() => updateH("encargos", d.encargos.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button></div></div>))}<button onClick={() => updateH("encargos", [...(d.encargos || []), { id: Date.now(), descripcion: "", cliente: "", estado: "Pendiente" }])} style={addBtnStyle}>+ Añadir encargo</button></Card>
+          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{ display: "flex", flexDirection: "column", gap: 8 }}><HCheckBox label="Limpieza realizada" checked={d.limpieza?.hecho || false} onChange={v => updateHL("hecho", v)} />{d.limpieza?.hecho && (<div style={{ paddingLeft: 8 }}><div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>Zonas:</div><div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>{ZONAS_LIMPIEZA.map(zona => (<Pill key={zona} label={zona} active={(d.limpieza?.zonas || []).includes(zona)} onClick={() => toggleHL(zona)} />))}</div><textarea value={d.limpieza?.notas || ""} onChange={e => updateHL("notas", e.target.value)} placeholder="Notas..." rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} /></div>)}<HCheckBox label="Repuesto desde fuera" checked={d.repuestoFuera || false} onChange={v => updateH("repuestoFuera", v)} /><HCheckBox label="Repuesto desde dentro" checked={d.repuestoDentro || false} onChange={v => updateH("repuestoDentro", v)} /><HCheckBox label="Almacén arreglado" checked={d.almacenArreglado || false} onChange={v => updateH("almacenArreglado", v)} /><HCheckBox label="Ordenado el almacén" checked={d.ordenadoAlmacen || false} onChange={v => updateH("ordenadoAlmacen", v)} /><HCheckBox label="Bajado cajas" checked={d.bajadoCajas || false} onChange={v => updateH("bajadoCajas", v)} /><HCheckBox label="Control de stocks" checked={d.stocks || false} onChange={v => updateH("stocks", v)} /><HCheckBox label="Revisión de caducidades" checked={d.caducidades || false} onChange={v => updateH("caducidades", v)} /></div></Card>
+          <div style={{ display: "flex", gap: 10 }}><button onClick={() => setEditingHistorialDay(null)} style={{ flex: 1, padding: 12, border: "2px solid #e2e8f0", borderRadius: 10, background: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer", color: "#64748b" }}>Cancelar</button><button onClick={() => saveHistorialDay(d.id, d)} style={{ flex: 2, padding: 12, border: "none", borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar cambios</button></div>
         </div>
       );
     }
@@ -404,15 +392,10 @@ export default function App() {
       const tareasDone = [d.stocks, d.caducidades, d.almacenArreglado, d.repuestoFuera, d.repuestoDentro, d.ordenadoAlmacen, d.bajadoCajas, d.limpieza?.hecho].filter(Boolean).length;
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => setSelectedDay(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#64748b" }}>← Volver</button>
-            <h2 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", flex: 1 }}>{d.fecha || d.fechaKey}</h2>
-            <button onClick={() => setEditingHistorialDay({ ...d })} style={{ background: "#eff6ff", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#3b82f6" }}>✏️ Editar</button>
-            <button onClick={() => deleteDay(d.id)} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#ef4444" }}>🗑 Borrar</button>
-          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><button onClick={() => setSelectedDay(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#64748b" }}>← Volver</button><h2 style={{ fontSize: 14, fontWeight: 800, color: "#1e293b", flex: 1 }}>{d.fecha || d.fechaKey}</h2><button onClick={() => setEditingHistorialDay({ ...d })} style={{ background: "#eff6ff", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#3b82f6" }}>✏️ Editar</button><button onClick={() => deleteDay(d.id)} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#ef4444" }}>🗑 Borrar</button></div>
           <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{d.turno && <Badge text={d.turno === "mañana" ? "☀️ Mañana" : "🌙 Tarde"} color="#6366f1" />}{d.responsable && <Badge text={`👤 ${d.responsable}`} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/8`} color="#10b981" /></div>{d.equipoPresente?.length > 0 && <div style={{ marginTop: 10, fontSize: 13, color: "#64748b" }}>👥 {d.equipoPresente.join(", ")}</div>}{d.notaTraspaso && <div style={{ marginTop: 10, padding: "8px 12px", background: "#fffbeb", borderRadius: 8, fontSize: 13, color: "#92400e" }}>📝 {d.notaTraspaso}</div>}</Card>
-          {(d.pedidos || []).length > 0 && <Card><SectionTitle icon="📦">Pedidos ({d.pedidos.length})</SectionTitle>{d.pedidos.map((p, i) => (<div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 8 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{p.proveedor}</div>{p.descripcion && <div style={{ fontSize: 13, color: "#64748b" }}>{p.descripcion}</div>}<div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}><Badge text={p.estado} color={colorEstado[p.estado] || "#6366f1"} />{p.responsable && <Badge text={p.responsable} color="#8b5cf6" />}{p.incidencia && <Badge text="⚠️" color="#ef4444" />}</div></div>))}</Card>}
-          {(d.incidencias || []).length > 0 && <Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{d.incidencias.map((inc, i) => (<div key={i} style={{ padding: "10px 14px", background: "#fffbeb", borderRadius: 10, marginBottom: 8, borderLeft: "3px solid #f59e0b" }}><div style={{ fontWeight: 700, color: "#92400e", fontSize: 14 }}>{inc.tipo}</div><div style={{ fontSize: 13, color: "#64748b" }}>{inc.descripcion}</div><div style={{ display: "flex", gap: 6, marginTop: 6 }}>{inc.responsable && <Badge text={inc.responsable} color="#8b5cf6" />}{inc.resuelta && <Badge text="✓ Resuelta" color="#10b981" />}</div></div>))}</Card>}
+          {(d.pedidos || []).length > 0 && <Card><SectionTitle icon="📦">Pedidos ({d.pedidos.length})</SectionTitle>{d.pedidos.map((p, i) => (<div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 8 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{p.proveedor}</div>{p.descripcion && <div style={{ fontSize: 13, color: "#64748b" }}>{p.descripcion}</div>}<div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}><Badge text={p.estado} color={colorEstado[p.estado] || "#6366f1"} />{p.responsable && <Badge text={p.responsable} color="#8b5cf6" />}{p.incidencia && <Badge text="⚠️" color="#ef4444" />}</div>{(p.fotos || []).length > 0 && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{p.fotos.map((url, fi) => <img key={fi} src={url} alt="foto" onClick={() => window.open(url)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, cursor: "pointer", border: "2px solid #e2e8f0" }} />)}</div>}</div>))}</Card>}
+          {(d.incidencias || []).length > 0 && <Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{d.incidencias.map((inc, i) => (<div key={i} style={{ padding: "10px 14px", background: "#fffbeb", borderRadius: 10, marginBottom: 8, borderLeft: "3px solid #f59e0b" }}><div style={{ fontWeight: 700, color: "#92400e", fontSize: 14 }}>{inc.tipo}</div><div style={{ fontSize: 13, color: "#64748b" }}>{inc.descripcion}</div><div style={{ display: "flex", gap: 6, marginTop: 6 }}>{inc.responsable && <Badge text={inc.responsable} color="#8b5cf6" />}{inc.resuelta && <Badge text="✓ Resuelta" color="#10b981" />}</div>{(inc.fotos || []).length > 0 && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{inc.fotos.map((url, fi) => <img key={fi} src={url} alt="foto" onClick={() => window.open(url)} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, cursor: "pointer", border: "2px solid #e2e8f0" }} />)}</div>}</div>))}</Card>}
           {((d.encargos || []).length + (d.vacunas || []).length + (d.formulasMagistrales || []).length) > 0 && <Card><SectionTitle icon="💊">Encargos</SectionTitle>{(d.encargos || []).map((e, i) => <div key={i} style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 10, marginBottom: 8 }}><div style={{ fontWeight: 700, fontSize: 13 }}>🧪 {e.descripcion}</div><div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>{e.cliente && <Badge text={`👤 ${e.cliente}`} color="#6366f1" />}{e.estado && <Badge text={e.estado} color="#f59e0b" />}</div></div>)}{(d.vacunas || []).map((v, i) => <div key={i} style={{ padding: "8px 12px", background: "#eff6ff", borderRadius: 10, marginBottom: 8 }}><div style={{ fontWeight: 700, fontSize: 13 }}>💉 {v.vacuna}</div><div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>{v.cliente && <Badge text={`👤 ${v.cliente}`} color="#3b82f6" />}{v.estado && <Badge text={v.estado} color="#f59e0b" />}</div></div>)}{(d.formulasMagistrales || []).map((f, i) => <div key={i} style={{ padding: "8px 12px", background: "#f0fdf4", borderRadius: 10, marginBottom: 8 }}><div style={{ fontWeight: 700, fontSize: 13 }}>⚗️ {f.formula}</div><div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>{f.cliente && <Badge text={`👤 ${f.cliente}`} color="#10b981" />}{f.estado && <Badge text={f.estado} color="#f59e0b" />}</div></div>)}</Card>}
           <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{[{ label: "Limpieza", done: d.limpieza?.hecho }, { label: "Repuesto desde fuera", done: d.repuestoFuera }, { label: "Repuesto desde dentro", done: d.repuestoDentro }, { label: "Almacén arreglado", done: d.almacenArreglado }, { label: "Ordenado almacén", done: d.ordenadoAlmacen }, { label: "Bajado cajas", done: d.bajadoCajas }, { label: "Control de stocks", done: d.stocks }, { label: "Revisión caducidades", done: d.caducidades }].map(({ label, done }) => (<div key={label} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: done ? "#065f46" : "#94a3b8" }}><span>{done ? "✅" : "⬜"}</span>{label}</div>))}{d.limpieza?.zonas?.length > 0 && <div style={{ marginTop: 6, fontSize: 13, color: "#64748b" }}>🧹 {d.limpieza.zonas.join(", ")}</div>}{d.limpieza?.notas && <div style={{ fontSize: 13, color: "#64748b" }}>📝 {d.limpieza.notas}</div>}</div></Card>
         </div>
@@ -441,8 +424,8 @@ export default function App() {
   const renderModal = () => {
     if (!showModal) return null;
     const configs = {
-      pedido: { title: editingItem ? "✏️ Editar pedido" : "📦 Nuevo pedido", fields: [{ key: "proveedor", label: "Proveedor *", type: "text", placeholder: "Ej: Cofares, Hefame..." }, { key: "descripcion", label: "Descripción", type: "text", placeholder: "Artículos o notas" }, { key: "estado", label: "Estado *", type: "select", options: ESTADOS_PEDIDO }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "incidencia", label: "¿Tiene incidencia?", type: "checkbox" }, { key: "notaIncidencia", label: "Nota de incidencia", type: "text", placeholder: "Describe la incidencia", hidden: !formData.incidencia }], onSave: () => addItem("pedidos") },
-      incidencia: { title: editingItem ? "✏️ Editar incidencia" : "⚠️ Nueva incidencia", fields: [{ key: "tipo", label: "Tipo *", type: "select", options: ["Cliente", "Stock", "Proveedor", "Técnica", "Personal", "Otro"] }, { key: "descripcion", label: "Descripción *", type: "textarea", placeholder: "Describe la incidencia..." }, { key: "turno", label: "Turno", type: "select", options: ["mañana", "tarde"] }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "resuelta", label: "¿Resuelta?", type: "checkbox" }], onSave: () => addItem("incidencias") },
+      pedido: { title: editingItem ? "✏️ Editar pedido" : "📦 Nuevo pedido", fields: [{ key: "proveedor", label: "Proveedor *", type: "text", placeholder: "Ej: Cofares, Hefame..." }, { key: "descripcion", label: "Descripción", type: "text", placeholder: "Artículos o notas" }, { key: "estado", label: "Estado *", type: "select", options: ESTADOS_PEDIDO }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "incidencia", label: "¿Tiene incidencia?", type: "checkbox" }, { key: "notaIncidencia", label: "Nota de incidencia", type: "text", placeholder: "Describe la incidencia", hidden: !formData.incidencia }, { key: "fotos", label: "📸 Fotos del pedido", type: "fotos", carpeta: "pedidos" }], onSave: () => addItem("pedidos") },
+      incidencia: { title: editingItem ? "✏️ Editar incidencia" : "⚠️ Nueva incidencia", fields: [{ key: "tipo", label: "Tipo *", type: "select", options: ["Cliente", "Stock", "Proveedor", "Técnica", "Personal", "Otro"] }, { key: "descripcion", label: "Descripción *", type: "textarea", placeholder: "Describe la incidencia..." }, { key: "turno", label: "Turno", type: "select", options: ["mañana", "tarde"] }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "resuelta", label: "¿Resuelta?", type: "checkbox" }, { key: "fotos", label: "📸 Fotos de la incidencia", type: "fotos", carpeta: "incidencias" }], onSave: () => addItem("incidencias") },
       encargo: { title: editingItem ? "✏️ Editar encargo" : "🧪 Encargo especial", fields: [{ key: "descripcion", label: "Descripción *", type: "text", placeholder: "Qué se encarga..." }, { key: "cliente", label: "Cliente", type: "text", placeholder: "Nombre del cliente" }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "estado", label: "Estado", type: "select", options: ["Pendiente", "En gestión", "Listo", "Entregado"] }], onSave: () => addItem("encargos") },
       vacuna: { title: editingItem ? "✏️ Editar vacuna" : "💉 Encargo de vacuna", fields: [{ key: "vacuna", label: "Vacuna *", type: "text", placeholder: "Nombre de la vacuna" }, { key: "cliente", label: "Cliente", type: "text", placeholder: "Nombre del cliente" }, { key: "dosis", label: "Dosis", type: "text", placeholder: "Ej: 1ª dosis" }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "estado", label: "Estado", type: "select", options: ["Pendiente", "En camino", "Recibida", "Dispensada"] }], onSave: () => addItem("vacunas") },
       formula: { title: editingItem ? "✏️ Editar fórmula" : "⚗️ Fórmula magistral", fields: [{ key: "formula", label: "Fórmula *", type: "text", placeholder: "Nombre/descripción" }, { key: "cliente", label: "Cliente", type: "text", placeholder: "Nombre del cliente" }, { key: "laboratorio", label: "Laboratorio", type: "text", placeholder: "Laboratorio preparador" }, { key: "responsable", label: "Responsable", type: "select", options: EQUIPO }, { key: "estado", label: "Estado", type: "select", options: ["Encargada", "En preparación", "Lista", "Recogida"] }], onSave: () => addItem("formulasMagistrales") },
@@ -461,6 +444,7 @@ export default function App() {
               {field.type === "textarea" && <textarea value={formData[field.key] || ""} onChange={e => setFormData(p => ({ ...p, [field.key]: e.target.value }))} placeholder={field.placeholder} rows={3} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />}
               {field.type === "select" && <select value={formData[field.key] || ""} onChange={e => setFormData(p => ({ ...p, [field.key]: e.target.value }))} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Seleccionar...</option>{field.options.map(o => <option key={o} value={o}>{o}</option>)}</select>}
               {field.type === "checkbox" && <CheckBox label={field.label} checked={!!formData[field.key]} onChange={v => setFormData(p => ({ ...p, [field.key]: v }))} />}
+              {field.type === "fotos" && <FotoUploader fotos={formData[field.key] || []} onChange={urls => setFormData(p => ({ ...p, [field.key]: urls }))} carpeta={field.carpeta} />}
             </div>
           ))}
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
