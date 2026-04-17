@@ -4,7 +4,7 @@ import {
   collection, doc, setDoc, onSnapshot, query, orderBy, deleteDoc, addDoc, serverTimestamp
 } from "firebase/firestore";
 
-const EQUIPO = ["Elisa", "Laura", "Irene", "Gonzalo", "Andrea", "Rocío", "Victoria", "Esther"];
+const EQUIPO = ["Elisa", "Laura", "Irene", "Gonzalo", "Andrea", "Rocío", "Victoria", "Esther", "Antonio"];
 const ZONAS_LIMPIEZA = ["Mostrador", "Almacén", "Sala trasera", "Baño", "Zona fría", "Escaparate", "Suelo general"];
 const ESTADOS_PEDIDO = ["Recibido", "Gestionado", "Metido"];
 const colorEstado = { "Recibido": "#f59e0b", "Gestionado": "#3b82f6", "Metido": "#10b981" };
@@ -292,12 +292,37 @@ export default function App() {
     if (editingHistorialDay) {
       const d = editingHistorialDay;
       const updateH = (key, value) => setEditingHistorialDay(prev => ({ ...prev, [key]: value }));
+      const updateHL = (key, value) => setEditingHistorialDay(prev => ({ ...prev, limpieza: { ...prev.limpieza, [key]: value } }));
+      const toggleHL = (zona) => { const zonas = (d.limpieza?.zonas || []).includes(zona) ? d.limpieza.zonas.filter(z => z !== zona) : [...(d.limpieza?.zonas || []), zona]; updateHL("zonas", zonas); };
+      const HCheckBox = ({ label, checked, onChange }) => (<button onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: checked ? "#d1fae5" : "#fff", border: `2px solid ${checked ? "#10b981" : "#e2e8f0"}`, borderRadius: 10, cursor: "pointer", fontFamily: "inherit", fontSize: 14, color: checked ? "#065f46" : "#475569", fontWeight: checked ? 600 : 400, width: "100%", textAlign: "left" }}><span style={{ fontSize: 18 }}>{checked ? "✅" : "⬜"}</span>{label}</button>);
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button onClick={() => setEditingHistorialDay(null)} style={{ background: "#f1f5f9", border: "none", borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "#64748b" }}>← Cancelar</button>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: "#1e293b", flex: 1 }}>✏️ Editar jornada</h2>
           </div>
+
+          {/* TURNO Y RESPONSABLE */}
+          <Card>
+            <SectionTitle icon="📋">Datos del turno</SectionTitle>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <select value={d.turno || "mañana"} onChange={e => updateH("turno", e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>
+                <option value="mañana">☀️ Turno mañana</option>
+                <option value="tarde">🌙 Turno tarde</option>
+              </select>
+              <select value={d.responsable || ""} onChange={e => updateH("responsable", e.target.value)} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>
+                <option value="">👤 Responsable</option>
+                {EQUIPO.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 4 }}>Equipo presente:</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {EQUIPO.map(nombre => { const active = (d.equipoPresente || []).includes(nombre); return (<button key={nombre} onClick={() => { const p = d.equipoPresente || []; updateH("equipoPresente", active ? p.filter(n => n !== nombre) : [...p, nombre]); }} style={{ padding: "6px 14px", borderRadius: 30, fontSize: 13, fontWeight: 600, cursor: "pointer", background: active ? "#6366f1" : "#f8fafc", color: active ? "#fff" : "#64748b", border: `2px solid ${active ? "#6366f1" : "#e2e8f0"}`, fontFamily: "inherit" }}>{nombre}</button>); })}
+              </div>
+              <textarea value={d.notaTraspaso || ""} onChange={e => updateH("notaTraspaso", e.target.value)} placeholder="Nota de traspaso..." rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
+            </div>
+          </Card>
+
+          {/* PEDIDOS */}
           <Card>
             <SectionTitle icon="📦">Pedidos</SectionTitle>
             {(d.pedidos || []).map((p, i) => (
@@ -305,13 +330,67 @@ export default function App() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <input value={p.proveedor || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], proveedor: e.target.value }; updateH("pedidos", arr); }} placeholder="Proveedor" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
                   <input value={p.descripcion || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], descripcion: e.target.value }; updateH("pedidos", arr); }} placeholder="Descripción" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
-                  <select value={p.estado || ""} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], estado: e.target.value }; updateH("pedidos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>{ESTADOS_PEDIDO.map(o => <option key={o} value={o}>{o}</option>)}</select>
+                  <select value={p.estado || "Recibido"} onChange={e => { const arr = [...d.pedidos]; arr[i] = { ...arr[i], estado: e.target.value }; updateH("pedidos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}>{ESTADOS_PEDIDO.map(o => <option key={o} value={o}>{o}</option>)}</select>
                   <button onClick={() => updateH("pedidos", d.pedidos.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button>
                 </div>
               </div>
             ))}
             <button onClick={() => updateH("pedidos", [...(d.pedidos || []), { id: Date.now(), proveedor: "", descripcion: "", estado: "Recibido" }])} style={addBtnStyle}>+ Añadir pedido</button>
           </Card>
+
+          {/* INCIDENCIAS */}
+          <Card>
+            <SectionTitle icon="⚠️">Incidencias</SectionTitle>
+            {(d.incidencias || []).map((inc, i) => (
+              <div key={i} style={{ padding: "10px 14px", background: "#fffbeb", borderRadius: 10, marginBottom: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <select value={inc.tipo || ""} onChange={e => { const arr = [...d.incidencias]; arr[i] = { ...arr[i], tipo: e.target.value }; updateH("incidencias", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Tipo...</option>{["Cliente","Stock","Proveedor","Técnica","Personal","Otro"].map(o => <option key={o} value={o}>{o}</option>)}</select>
+                  <textarea value={inc.descripcion || ""} onChange={e => { const arr = [...d.incidencias]; arr[i] = { ...arr[i], descripcion: e.target.value }; updateH("incidencias", arr); }} placeholder="Descripción" rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
+                  <button onClick={() => updateH("incidencias", d.incidencias.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => updateH("incidencias", [...(d.incidencias || []), { id: Date.now(), tipo: "", descripcion: "" }])} style={addBtnStyle}>+ Añadir incidencia</button>
+          </Card>
+
+          {/* ENCARGOS */}
+          <Card>
+            <SectionTitle icon="💊">Encargos</SectionTitle>
+            {(d.encargos || []).map((e, i) => (
+              <div key={i} style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 10, marginBottom: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <input value={e.descripcion || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], descripcion: ev.target.value }; updateH("encargos", arr); }} placeholder="Descripción" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
+                  <input value={e.cliente || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], cliente: ev.target.value }; updateH("encargos", arr); }} placeholder="Cliente" style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }} />
+                  <select value={e.estado || ""} onChange={ev => { const arr = [...d.encargos]; arr[i] = { ...arr[i], estado: ev.target.value }; updateH("encargos", arr); }} style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}><option value="">Estado...</option>{["Pendiente","En gestión","Listo","Entregado"].map(o => <option key={o} value={o}>{o}</option>)}</select>
+                  <button onClick={() => updateH("encargos", d.encargos.filter((_, j) => j !== i))} style={{ background: "#fee2e2", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, color: "#ef4444", alignSelf: "flex-start" }}>🗑 Eliminar</button>
+                </div>
+              </div>
+            ))}
+            <button onClick={() => updateH("encargos", [...(d.encargos || []), { id: Date.now(), descripcion: "", cliente: "", estado: "Pendiente" }])} style={addBtnStyle}>+ Añadir encargo</button>
+          </Card>
+
+          {/* TAREAS */}
+          <Card>
+            <SectionTitle icon="✅">Tareas</SectionTitle>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <HCheckBox label="Limpieza realizada" checked={d.limpieza?.hecho || false} onChange={v => updateHL("hecho", v)} />
+              {d.limpieza?.hecho && (
+                <div style={{ paddingLeft: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#64748b", marginBottom: 6 }}>Zonas:</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>{ZONAS_LIMPIEZA.map(zona => (<Pill key={zona} label={zona} active={(d.limpieza?.zonas || []).includes(zona)} onClick={() => toggleHL(zona)} />))}</div>
+                  <textarea value={d.limpieza?.notas || ""} onChange={e => updateHL("notas", e.target.value)} placeholder="Notas de limpieza..." rows={2} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical" }} />
+                </div>
+              )}
+              <HCheckBox label="Repuesto desde fuera" checked={d.repuestoFuera || false} onChange={v => updateH("repuestoFuera", v)} />
+              <HCheckBox label="Repuesto desde dentro" checked={d.repuestoDentro || false} onChange={v => updateH("repuestoDentro", v)} />
+              <HCheckBox label="Almacén arreglado" checked={d.almacenArreglado || false} onChange={v => updateH("almacenArreglado", v)} />
+              <HCheckBox label="Ordenado el almacén" checked={d.ordenadoAlmacen || false} onChange={v => updateH("ordenadoAlmacen", v)} />
+              <HCheckBox label="Bajado cajas" checked={d.bajadoCajas || false} onChange={v => updateH("bajadoCajas", v)} />
+              <HCheckBox label="Control de stocks" checked={d.stocks || false} onChange={v => updateH("stocks", v)} />
+              <HCheckBox label="Revisión de caducidades" checked={d.caducidades || false} onChange={v => updateH("caducidades", v)} />
+            </div>
+          </Card>
+
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={() => setEditingHistorialDay(null)} style={{ flex: 1, padding: 12, border: "2px solid #e2e8f0", borderRadius: 10, background: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer", color: "#64748b" }}>Cancelar</button>
             <button onClick={() => saveHistorialDay(d.id, d)} style={{ flex: 2, padding: 12, border: "none", borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #818cf8)", color: "#fff", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>💾 Guardar cambios</button>
