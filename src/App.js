@@ -362,7 +362,12 @@ export default function App(){
   const [newAnuncio,setNewAnuncio] = useState({titulo:"",texto:"",tipo:"info"})
   const [calViewDate,setCalViewDate] = useState(new Date())
   const [calPerson,setCalPerson] = useState("Antonio")
-  const [marcaPersona,setMarcaPersona] = useState("Antonio")
+  const [marcaPersona,  setMarcaPersona]  = useState(EQUIPO[0])
+  const [marcaNombre,   setMarcaNombre]   = useState("")
+  const [marcaHistorial,setMarcaHistorial]= useState([])
+  const [marcaView,     setMarcaView]     = useState("hoy")
+  const [marcaDetalle,  setMarcaDetalle]  = useState(null)
+  const [marcaNombres,  setMarcaNombres]  = useState({})
   const [marcaData,setMarcaData] = useState({})
   const chatEndRef = useRef(null)
 
@@ -1033,7 +1038,7 @@ export default function App(){
   // ── ANÁLISIS DE MARCA ───────────────────────────────────────
   const CRITERIOS_MARCA = [
     {id:"ubicacion",    icon:"🔍", label:"Ubicación en el lineal",    desc:"Posición y altura (nivel ojos, inferior, superior)."},
-    {id:"visibilidad",  icon:"👁️", label:"Visibilidad y acceso",       desc:"¿Es fácil de ver y alcanzar? ¿Está bien iluminado?"},
+    {id:"visibilidad",  icon:"👁", label:"Visibilidad y acceso",       desc:"¿Es fácil de ver y alcanzar? ¿Está bien iluminado?"},
     {id:"presentacion", icon:"🖥️", label:"Presentación de productos",  desc:"Orden y presentación (homogeneidad, limpieza, facing correcto)."},
     {id:"variedad",     icon:"📊", label:"Variedad y gama ofrecida",   desc:"¿Están representadas todas las líneas de la marca?"},
     {id:"rotacion",     icon:"🔄", label:"Rotación y ventas (ABC)",    desc:"Productos A / B / C. % del total del lineal ocupado."},
@@ -1067,14 +1072,6 @@ export default function App(){
       setTimeout(()=>setSavedMsg(""),2000)
     }catch{ setSavedMsg("❌ Error al guardar") }
   }
-  const [marcaPersona,  setMarcaPersona]  = useState(EQUIPO[0])
-  const [marcaNombre,   setMarcaNombre]   = useState("")
-  const [marcaHistorial,setMarcaHistorial]= useState([])
-  const [marcaView,     setMarcaView]     = useState("hoy")
-  const [marcaDetalle,  setMarcaDetalle]  = useState(null)
-  const [marcaData,     setMarcaData]     = useState({})
-  const [marcaNombres,  setMarcaNombres]  = useState({})
-
   useEffect(()=>{
     if(!role) return
     const q = query(collection(db,"marca"),orderBy("fecha","desc"))
