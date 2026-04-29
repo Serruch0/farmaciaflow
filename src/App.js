@@ -400,22 +400,6 @@ export default function App(){
     return ()=>unsub()
   },[role])
 
-  useEffect(()=>{
-    if(!role) return
-    const q = query(collection(db,"marca"),orderBy("timestamp","desc"))
-    const unsub = onSnapshot(q,(snap)=>{
-      const byPersona = {}
-      snap.docs.forEach(d=>{
-        const data = d.data()
-        if(data.fecha===todayKey()){
-          byPersona[data.persona] = data.data
-        }
-      })
-      setMarcaData(byPersona)
-    })
-    return ()=>unsub()
-  },[role])
-
   if(!role) return <PinScreen onUnlock={handleUnlock} />
 
   const isAdmin = role==="admin"
@@ -1046,80 +1030,245 @@ export default function App(){
     )
   }
 
-  // ── RENDER ANÁLISIS DE MARCA ─────────────────────────────────
+  // ── ANÁLISIS DE MARCA ───────────────────────────────────────
   const CRITERIOS_MARCA = [
-    {id:"ubicacion",icon:"🔍",label:"Ubicación en el lineal",desc:"Posición y altura en el lineal (nivel ojos, inferior, superior)."},
-    {id:"visibilidad",icon:"👁️",label:"Visibilidad y acceso",desc:"¿Es fácil de ver y alcanzar? ¿Está bien iluminado?"},
-    {id:"presentacion",icon:"🖥️",label:"Presentación de productos",desc:"Orden y presentación (homogeneidad, limpieza, facing correcto)."},
-    {id:"variedad",icon:"📊",label:"Variedad y gama ofrecida",desc:"¿Están representadas todas las líneas de la marca?"},
-    {id:"rotacion",icon:"🔄",label:"Rotación y ventas (ABC)",desc:"Productos A / B / C. % del total del lineal ocupado."},
-    {id:"stock",icon:"📦",label:"Stock y disponibilidad",desc:"¿Se detectan roturas de stock?"},
-    {id:"plv",icon:"🎯",label:"Material PLV",desc:"Displays, testers, cartelería de la marca."},
-    {id:"ofertas",icon:"🏷️",label:"Ofertas y promociones",desc:"¿Hay ofertas o promociones destacadas?"},
-    {id:"competencia",icon:"🏪",label:"Competencia adyacente",desc:"¿Qué marcas están cerca? Comparativa con competencia."},
-    {id:"formacion",icon:"👤",label:"Formación del equipo",desc:"¿El equipo conoce bien la marca?"},
-    {id:"pricing",icon:"💶",label:"Información y pricing",desc:"Precios e información clara y visible."},
-    {id:"reposicion",icon:"🔃",label:"Rotación y reposición",desc:"Caducidades y aplicación del FEFO."},
-    {id:"eventualidades",icon:"⚠️",label:"Eventualidades",desc:"Comentarios y problemas de clientes."},
-    {id:"mejoras",icon:"💡",label:"Sugerencias de mejora",desc:"Propuestas de mejora para el lineal."},
+    {id:"ubicacion",    icon:"🔍", label:"Ubicación en el lineal",    desc:"Posición y altura (nivel ojos, inferior, superior)."},
+    {id:"visibilidad",  icon:"👁️", label:"Visibilidad y acceso",       desc:"¿Es fácil de ver y alcanzar? ¿Está bien iluminado?"},
+    {id:"presentacion", icon:"🖥️", label:"Presentación de productos",  desc:"Orden y presentación (homogeneidad, limpieza, facing correcto)."},
+    {id:"variedad",     icon:"📊", label:"Variedad y gama ofrecida",   desc:"¿Están representadas todas las líneas de la marca?"},
+    {id:"rotacion",     icon:"🔄", label:"Rotación y ventas (ABC)",    desc:"Productos A / B / C. % del total del lineal ocupado."},
+    {id:"stock",        icon:"📦", label:"Stock y disponibilidad",     desc:"¿Se detectan roturas de stock?"},
+    {id:"plv",          icon:"🎯", label:"Material PLV",               desc:"Displays, testers, cartelería de la marca."},
+    {id:"ofertas",      icon:"🏷️", label:"Ofertas y promociones",      desc:"¿Hay ofertas o promociones destacadas?"},
+    {id:"competencia",  icon:"🏪", label:"Competencia adyacente",      desc:"¿Qué marcas están cerca? Comparativa con competencia."},
+    {id:"formacion",    icon:"👤", label:"Formación del equipo",       desc:"¿El equipo conoce bien la marca?"},
+    {id:"pricing",      icon:"💶", label:"Información y pricing",      desc:"Precios e información clara y visible."},
+    {id:"reposicion",   icon:"🔃", label:"Rotación y reposición",      desc:"Caducidades y aplicación del FEFO."},
+    {id:"eventualidades",icon:"⚠️",label:"Eventualidades",             desc:"Comentarios y problemas de clientes."},
+    {id:"mejoras",      icon:"💡", label:"Sugerencias de mejora",      desc:"Propuestas de mejora para el lineal."},
   ]
 
-  const getMarcaKey = (persona) => `marca_${persona}_${todayKey()}`
 
-  const saveMarca = async(persona, data) => {
+
+  const getRatingColor = (r) => r==="✓"?"#10b981":r==="~"?"#f59e0b":r==="✗"?"#ef4444":"#94a3b8"
+  const getRatingBg    = (r) => r==="✓"?"#d1fae5":r==="~"?"#fef3c7":r==="✗"?"#fee2e2":"#f8fafc"
+  const calcScore = (data) => {
+    if(!data) return null
+    const ratings = Object.values(data).map(v=>v?.rating).filter(Boolean)
+    if(ratings.length===0) return null
+    return Math.round((ratings.reduce((acc,r)=>acc+(r==="✓"?2:r==="~"?1:0),0)/(ratings.length*2))*100)
+  }
+  const saveMarca = async(persona,marca,data) => {
+    if(!marca||!marca.trim()){ setSavedMsg("⚠️ Escribe el nombre de la marca primero"); setTimeout(()=>setSavedMsg(""),3000); return }
     try{
-      await setDoc(doc(db,"marca",getMarcaKey(persona)),{persona,fecha:todayKey(),fechaLabel:todayLabel(),data,timestamp:new Date().toISOString()})
+      await setDoc(doc(db,"marca",`${persona}_${todayKey()}`),{persona,marca:marca.trim(),fecha:todayKey(),fechaLabel:todayLabel(),data,updatedAt:new Date().toISOString()})
+      setMarcaNombres(prev=>({...prev,[persona]:marca.trim()}))
       setSavedMsg("✓ Análisis guardado")
       setTimeout(()=>setSavedMsg(""),2000)
-    }catch{setSavedMsg("❌ Error al guardar")}
+    }catch{ setSavedMsg("❌ Error al guardar") }
   }
+  const [marcaPersona,  setMarcaPersona]  = useState(EQUIPO[0])
+  const [marcaNombre,   setMarcaNombre]   = useState("")
+  const [marcaHistorial,setMarcaHistorial]= useState([])
+  const [marcaView,     setMarcaView]     = useState("hoy")
+  const [marcaDetalle,  setMarcaDetalle]  = useState(null)
+  const [marcaData,     setMarcaData]     = useState({})
+  const [marcaNombres,  setMarcaNombres]  = useState({})
+
+  useEffect(()=>{
+    if(!role) return
+    const q = query(collection(db,"marca"),orderBy("fecha","desc"))
+    const unsub = onSnapshot(q,(snap)=>{
+      const entries = snap.docs.map(d=>({id:d.id,...d.data()}))
+      setMarcaHistorial(entries)
+      const byPersona = {}
+      const byNombre = {}
+      entries.forEach(e=>{
+        if(e.marca) byNombre[e.persona] = e.marca
+        if(e.fecha===todayKey()) byPersona[e.persona]=e.data||{}
+      })
+      setMarcaData(byPersona)
+      setMarcaNombres(byNombre)
+    })
+    return ()=>unsub()
+  },[role])
 
   const renderMarca = () => {
-    const currentData = marcaData[marcaPersona]||{}
-    const updateMarca = (id,field,value) => {
-      const updated = {...marcaData,[marcaPersona]:{...currentData,[id]:{...(currentData[id]||{}),[field]:value}}}
-      setMarcaData(updated)
+    const marca = marcaNombres[marcaPersona]||""
+    const marcaActual = marcaNombre||marca
+    const todayData = marcaData[marcaPersona]||{}
+    const scoreHoy = calcScore(todayData)
+    const personaHist = marcaHistorial.filter(e=>e.persona===marcaPersona).sort((a,b)=>b.fecha.localeCompare(a.fecha))
+    const last10 = [...personaHist].reverse().slice(-10)
+    const updateField = (id,field,value) => setMarcaData(prev=>({...prev,[marcaPersona]:{...(prev[marcaPersona]||{}),[id]:{...(prev[marcaPersona]?.[id]||{}),[field]:value}}}))
+
+    if(marcaView==="evolucion") return (
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setMarcaView("hoy")} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button>
+          <div><div style={{fontSize:16,fontWeight:800,color:"#1e293b"}}>{marcaPersona}</div><div style={{fontSize:12,color:"#6366f1",fontWeight:600}}>{marca}</div></div>
+        </div>
+        {last10.length<2
+          ?<div style={{textAlign:"center",padding:"40px 20px",color:"#94a3b8"}}><div style={{fontSize:40,marginBottom:8}}>📊</div>Necesitas al menos 2 análisis para ver la evolución</div>
+          :<>
+            <Card>
+              <SectionTitle icon="📈">Evolución de puntuación</SectionTitle>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {last10.map((entry,i)=>{
+                  const s=calcScore(entry.data); if(s===null) return null
+                  const prev=i>0?calcScore(last10[i-1].data):null
+                  const trend=prev!==null?(s>prev?"↗️":s<prev?"↘️":"→"):""
+                  return (<div key={entry.id} onClick={()=>{setMarcaDetalle(entry);setMarcaView("detalle")}} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",padding:"8px 4px",borderBottom:"1px solid #f1f5f9"}}>
+                    <div style={{width:52,fontSize:12,color:"#64748b",fontWeight:600,flexShrink:0}}>{entry.fecha.slice(8)}/{entry.fecha.slice(5,7)}</div>
+                    <div style={{flex:1,height:10,background:"#f1f5f9",borderRadius:20,overflow:"hidden"}}><div style={{width:`${s}%`,height:"100%",background:s>=70?"#10b981":s>=40?"#f59e0b":"#ef4444",borderRadius:20}} /></div>
+                    <div style={{fontSize:13,fontWeight:800,color:s>=70?"#10b981":s>=40?"#f59e0b":"#ef4444",minWidth:36,textAlign:"right"}}>{s}%</div>
+                    <div style={{fontSize:14,minWidth:20}}>{trend}</div>
+                  </div>)
+                })}
+              </div>
+            </Card>
+            <Card>
+              <SectionTitle icon="🔍">Progreso por criterio</SectionTitle>
+              {CRITERIOS_MARCA.map(c=>(
+                <div key={c.id} style={{marginBottom:14}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"#1e293b",marginBottom:6}}>{c.icon} {c.label}</div>
+                  <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+                    {last10.map((e,i)=>{const r=(e.data||{})[c.id]?.rating||null;return(
+                      <div key={i} style={{textAlign:"center"}}>
+                        <div style={{width:26,height:26,borderRadius:8,background:r?getRatingBg(r):"#f1f5f9",border:`1px solid ${r?getRatingColor(r)+"55":"#e2e8f0"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:r?getRatingColor(r):"#cbd5e1"}}>{r||"·"}</div>
+                        <div style={{fontSize:8,color:"#94a3b8",marginTop:2}}>{e.fecha.slice(8)}/{e.fecha.slice(5,7)}</div>
+                      </div>
+                    )})}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </>
+        }
+      </div>
+    )
+
+    if(marcaView==="detalle"&&marcaDetalle) {
+      const e=marcaDetalle; const s=calcScore(e.data)
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>{setMarcaView("historial");setMarcaDetalle(null)}} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button>
+            <div style={{flex:1}}><div style={{fontWeight:800,color:"#1e293b",fontSize:15}}>{e.marca}</div><div style={{fontSize:12,color:"#94a3b8"}}>{e.fechaLabel||e.fecha} · {e.persona}</div></div>
+            {s!==null&&<span style={{fontSize:15,fontWeight:800,padding:"5px 12px",borderRadius:20,background:s>=70?"#d1fae5":s>=40?"#fef3c7":"#fee2e2",color:s>=70?"#065f46":s>=40?"#92400e":"#dc2626"}}>{s}%</span>}
+          </div>
+          {CRITERIOS_MARCA.map(c=>{const val=(e.data||{})[c.id]||{};if(!val.rating&&!val.obs) return null;return(
+            <Card key={c.id}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:val.obs?8:0}}>
+                <div style={{fontWeight:700,color:"#1e293b",fontSize:14}}>{c.icon} {c.label}</div>
+                {val.rating&&<span style={{padding:"4px 12px",borderRadius:20,fontSize:13,fontWeight:700,background:getRatingBg(val.rating),color:getRatingColor(val.rating)}}>{val.rating}</span>}
+              </div>
+              {val.obs&&<div style={{fontSize:13,color:"#64748b",lineHeight:1.5}}>{val.obs}</div>}
+            </Card>
+          )})}
+        </div>
+      )
     }
-    const handleSaveMarca = () => saveMarca(marcaPersona, currentData)
+
+    if(marcaView==="historial") return (
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setMarcaView("hoy")} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button>
+          <div><div style={{fontSize:16,fontWeight:800,color:"#1e293b"}}>{marcaPersona} · {marca}</div><div style={{fontSize:12,color:"#94a3b8"}}>{personaHist.length} análisis guardados</div></div>
+        </div>
+        {personaHist.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#94a3b8"}}><div style={{fontSize:40,marginBottom:8}}>📭</div>Sin análisis anteriores</div>}
+        {personaHist.map(entry=>{
+          const s=calcScore(entry.data); const n=Object.values(entry.data||{}).filter(v=>v?.rating).length
+          return (<Card key={entry.id} style={{cursor:"pointer"}} onClick={()=>{setMarcaDetalle(entry);setMarcaView("detalle")}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontWeight:700,color:"#1e293b",fontSize:14}}>{entry.fechaLabel||entry.fecha}</div><div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{n} de 14 criterios evaluados</div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {s!==null&&<span style={{fontSize:14,fontWeight:800,padding:"4px 10px",borderRadius:20,background:s>=70?"#d1fae5":s>=40?"#fef3c7":"#fee2e2",color:s>=70?"#065f46":s>=40?"#92400e":"#dc2626"}}>{s}%</span>}
+                <span style={{color:"#94a3b8",fontSize:20}}>›</span>
+              </div>
+            </div>
+          </Card>)
+        })}
+      </div>
+    )
+
+    // Vista principal HOY
     return (
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>🏷️ Análisis de marca</h2>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {EQUIPO.map(p=>(
-            <button key={p} onClick={()=>setMarcaPersona(p)} style={{padding:"6px 14px",borderRadius:20,fontSize:13,fontWeight:600,cursor:"pointer",background:marcaPersona===p?"#6366f1":"#f8fafc",color:marcaPersona===p?"#fff":"#64748b",border:`2px solid ${marcaPersona===p?"#6366f1":"#e2e8f0"}`,fontFamily:"inherit"}}>{p}</button>
-          ))}
-        </div>
-        <Card style={{background:"linear-gradient(135deg,#eef2ff,#f5f3ff)",border:"1px solid #c7d2fe"}}>
-          <div style={{fontSize:14,color:"#4338ca",fontWeight:700}}>📋 Análisis del lineal de marca</div>
-          <div style={{fontSize:12,color:"#6366f1",marginTop:2}}>Responsable: {marcaPersona} · {todayLabel()}</div>
+        {/* Selector persona + nombre de marca */}
+        <Card>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div>
+              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>Responsable</label>
+              <select value={marcaPersona} onChange={e=>{setMarcaPersona(e.target.value);setMarcaNombre("");setMarcaView("hoy")}} style={{padding:"10px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:14,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box"}}>
+                {EQUIPO.map(n=><option key={n} value={n}>{n}{marcaNombres[n]?` — ${marcaNombres[n]}`:""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>Marca asignada</label>
+              <input
+                value={marcaNombre||(marcaNombres[marcaPersona]||"")}
+                onChange={e=>setMarcaNombre(e.target.value)}
+                placeholder="Escribe el nombre de la marca..."
+                style={{padding:"10px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:14,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box"}}
+              />
+            </div>
+          </div>
         </Card>
+        <Card style={{background:"linear-gradient(135deg,#1e293b,#334155)",border:"none"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:22,fontWeight:900,color:"#fff",letterSpacing:-0.5}}>{marcaActual||"—"}</div>
+              <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>Responsable: {marcaPersona}</div>
+              <div style={{fontSize:12,color:"#64748b",marginTop:1}}>{todayLabel()}</div>
+            </div>
+            {scoreHoy!==null&&(
+              <div style={{textAlign:"center",background:scoreHoy>=70?"#064e3b":scoreHoy>=40?"#78350f":"#7f1d1d",borderRadius:16,padding:"10px 16px"}}>
+                <div style={{fontSize:30,fontWeight:900,color:scoreHoy>=70?"#10b981":scoreHoy>=40?"#f59e0b":"#ef4444"}}>{scoreHoy}%</div>
+                <div style={{fontSize:10,color:"#94a3b8"}}>hoy</div>
+              </div>
+            )}
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <button onClick={()=>setMarcaView("historial")} style={{flex:1,padding:"9px 0",background:"#ffffff15",border:"1px solid #ffffff25",borderRadius:10,fontSize:12,fontWeight:700,cursor:"pointer",color:"#e2e8f0",fontFamily:"inherit"}}>📋 Historial</button>
+            <button onClick={()=>setMarcaView("evolucion")} style={{flex:1,padding:"9px 0",background:"#ffffff15",border:"1px solid #ffffff25",borderRadius:10,fontSize:12,fontWeight:700,cursor:"pointer",color:"#e2e8f0",fontFamily:"inherit"}}>📈 Evolución</button>
+          </div>
+        </Card>
+        {scoreHoy!==null&&(
+          <div style={{display:"flex",gap:8}}>
+            {[["✓",Object.values(todayData).filter(v=>v?.rating==="✓").length,"#10b981"],["~",Object.values(todayData).filter(v=>v?.rating==="~").length,"#f59e0b"],["✗",Object.values(todayData).filter(v=>v?.rating==="✗").length,"#ef4444"]].map(([r,n,c])=>(
+              <div key={r} style={{flex:1,background:c+"11",borderRadius:12,padding:"10px 0",textAlign:"center",border:`1px solid ${c}33`}}>
+                <div style={{fontSize:20,fontWeight:900,color:c}}>{n}</div><div style={{fontSize:12,fontWeight:700,color:c}}>{r}</div>
+              </div>
+            ))}
+            <div style={{flex:1,background:"#f8fafc",borderRadius:12,padding:"10px 0",textAlign:"center",border:"1px solid #e2e8f0"}}>
+              <div style={{fontSize:20,fontWeight:900,color:"#94a3b8"}}>{14-Object.values(todayData).filter(v=>v?.rating).length}</div>
+              <div style={{fontSize:12,fontWeight:700,color:"#94a3b8"}}>pendientes</div>
+            </div>
+          </div>
+        )}
         {CRITERIOS_MARCA.map((c,idx)=>{
-          const val = currentData[c.id]||{}
+          const val=todayData[c.id]||{}
           return (
-            <Card key={c.id}>
+            <Card key={c.id} style={{borderLeft:`4px solid ${val.rating?getRatingColor(val.rating):"#e2e8f0"}`}}>
               <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
-                <div style={{width:28,height:28,borderRadius:8,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{c.icon}</div>
-                <div style={{flex:1}}>
+                <div style={{width:34,height:34,borderRadius:10,background:val.rating?getRatingBg(val.rating):"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{c.icon}</div>
+                <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,color:"#1e293b",fontSize:14}}>{idx+1}. {c.label}</div>
-                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{c.desc}</div>
+                  <div style={{fontSize:12,color:"#94a3b8",marginTop:1}}>{c.desc}</div>
                 </div>
                 <div style={{display:"flex",gap:4,flexShrink:0}}>
                   {["✓","~","✗"].map(r=>(
-                    <button key={r} onClick={()=>updateMarca(c.id,"rating",r)} style={{width:28,height:28,borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:val.rating===r?(r==="✓"?"#10b981":r==="~"?"#f59e0b":"#ef4444"):"#f1f5f9",color:val.rating===r?"#fff":"#94a3b8"}}>{r}</button>
+                    <button key={r} onClick={()=>updateField(c.id,"rating",val.rating===r?null:r)} style={{width:34,height:34,borderRadius:10,border:`2px solid ${val.rating===r?getRatingColor(r):"#e2e8f0"}`,cursor:"pointer",fontWeight:900,fontSize:15,background:val.rating===r?getRatingBg(r):"#fff",color:val.rating===r?getRatingColor(r):"#cbd5e1",fontFamily:"inherit",transition:"all 0.15s"}}>{r}</button>
                   ))}
                 </div>
               </div>
-              <textarea
-                value={val.obs||""}
-                onChange={e=>updateMarca(c.id,"obs",e.target.value)}
-                placeholder="Observaciones..."
-                rows={2}
-                style={{padding:"8px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box",resize:"vertical"}}
-              />
+              <textarea value={val.obs||""} onChange={e=>updateField(c.id,"obs",e.target.value)} placeholder={`Observaciones sobre ${c.label.toLowerCase()}...`} rows={2} style={{padding:"8px 12px",border:`2px solid ${val.obs?"#c7d2fe":"#e2e8f0"}`,borderRadius:10,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:val.obs?"#fafbff":"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box",resize:"vertical",lineHeight:1.5}} />
             </Card>
           )
         })}
-        <button onClick={handleSaveMarca} style={{background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>💾 Guardar análisis</button>
+        <button onClick={()=>saveMarca(marcaPersona,marcaActual,todayData)} style={{background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>💾 Guardar análisis{marcaActual?` de ${marcaActual}`:""}</button>
         {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
       </div>
     )
