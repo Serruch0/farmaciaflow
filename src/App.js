@@ -360,6 +360,10 @@ export default function App(){
   const [anuncios,setAnuncios] = useState([])
   const [showAnuncioForm,setShowAnuncioForm] = useState(false)
   const [newAnuncio,setNewAnuncio] = useState({titulo:"",texto:"",tipo:"info"})
+  const [calViewDate,setCalViewDate] = useState(new Date())
+  const [calPerson,setCalPerson] = useState("Antonio")
+  const [marcaPersona,setMarcaPersona] = useState("Antonio")
+  const [marcaData,setMarcaData] = useState({})
   const chatEndRef = useRef(null)
 
   const handleUnlock = (r) => {sessionStorage.setItem("ff_role",r);setRole(r)}
@@ -396,19 +400,43 @@ export default function App(){
     return ()=>unsub()
   },[role])
 
+  useEffect(()=>{
+    if(!role) return
+    const q = query(collection(db,"marca"),orderBy("timestamp","desc"))
+    const unsub = onSnapshot(q,(snap)=>{
+      const byPersona = {}
+      snap.docs.forEach(d=>{
+        const data = d.data()
+        if(data.fecha===todayKey()){
+          byPersona[data.persona] = data.data
+        }
+      })
+      setMarcaData(byPersona)
+    })
+    return ()=>unsub()
+  },[role])
+
   if(!role) return <PinScreen onUnlock={handleUnlock} />
 
   const isAdmin = role==="admin"
   const turnoData = dayData.turnos?.[activeTurno]||emptyTurno()
 
-  const saveDay = async() => {
-    setSaving(true)
+  const saveDay = async(silent=false) => {
+    if(!silent) setSaving(true)
     try{
       await setDoc(doc(db,"jornadas",todayKey()),{...dayData,fechaKey:todayKey(),fecha:todayLabel()})
-      setSavedMsg("✓ Guardado correctamente")
-    }catch{setSavedMsg("❌ Error al guardar.")}
-    setSaving(false)
-    setTimeout(()=>setSavedMsg(""),3000)
+      if(!silent) setSavedMsg("✓ Guardado correctamente")
+    }catch{if(!silent) setSavedMsg("❌ Error al guardar.")}
+    if(!silent) setSaving(false)
+    if(!silent) setTimeout(()=>setSavedMsg(""),3000)
+  }
+
+  const autoSave = async(updatedData) => {
+    try{
+      await setDoc(doc(db,"jornadas",todayKey()),{...updatedData,fechaKey:todayKey(),fecha:todayLabel()})
+      setSavedMsg("✓ Guardado")
+      setTimeout(()=>setSavedMsg(""),2000)
+    }catch{}
   }
 
   const saveHistorialDay = async(updatedData) => {
@@ -451,11 +479,24 @@ export default function App(){
   const closeModal = () => {setShowModal(null);setFormData({});setEditingItem(null)}
   const addItem = (key) => {
     const current = turnoData[key]||[]
-    if(editingItem){updateTurno(key,current.map(i=>i.id===editingItem.id?{...formData,id:editingItem.id}:i))}
-    else{updateTurno(key,[...current,{...formData,id:Date.now()}])}
+    let updatedTurnos
+    if(editingItem){
+      const updated = current.map(i=>i.id===editingItem.id?{...formData,id:editingItem.id}:i)
+      updatedTurnos = {...dayData,turnos:{...dayData.turnos,[activeTurno]:{...turnoData,[key]:updated}}}
+    } else {
+      const updated = [...current,{...formData,id:Date.now()}]
+      updatedTurnos = {...dayData,turnos:{...dayData.turnos,[activeTurno]:{...turnoData,[key]:updated}}}
+    }
+    setDayData(updatedTurnos)
+    autoSave(updatedTurnos)
     closeModal()
   }
-  const removeItem = (key,id) => updateTurno(key,(turnoData[key]||[]).filter(i=>i.id!==id))
+  const removeItem = (key,id) => {
+    const updated = (turnoData[key]||[]).filter(i=>i.id!==id)
+    const updatedData = {...dayData,turnos:{...dayData.turnos,[activeTurno]:{...turnoData,[key]:updated}}}
+    setDayData(updatedData)
+    autoSave(updatedData)
+  }
   const toggleLimpiezaZona = (zona) => {
     const zonas = turnoData.limpieza.zonas.includes(zona)?turnoData.limpieza.zonas.filter(z=>z!==zona):[...turnoData.limpieza.zonas,zona]
     updateTurno("limpieza",{...turnoData.limpieza,zonas})
@@ -494,6 +535,7 @@ export default function App(){
     {id:"incidencias",label:"⚠️ Incid."},
     {id:"encargos",label:"💊 Encargos"},
     {id:"tareas",label:"✅ Tareas"},
+    {id:"marca",label:"🏷️ Marca"},
     {id:"chat",label:"💬 Chat"},
     {id:"historial",label:"📋 Historial"},
     ...(isAdmin?[{id:"admin",label:"👑 Admin"}]:[]),
@@ -617,18 +659,15 @@ export default function App(){
 
   // ── RENDER CALENDARIO ───────────────────────────────────────
   const renderCalendario = () => {
-    const today = new Date()
-    const [viewDate,setViewDate] = useState(new Date(today.getFullYear(),today.getMonth(),1))
-    const year = viewDate.getFullYear()
-    const month = viewDate.getMonth()
+    const year = calViewDate.getFullYear()
+    const month = calViewDate.getMonth()
     const firstDay = new Date(year,month,1).getDay()
     const daysInMonth = new Date(year,month+1,0).getDate()
-    const monthName = viewDate.toLocaleDateString("es-ES",{month:"long",year:"numeric"})
-    const prevMonth = () => setViewDate(new Date(year,month-1,1))
-    const nextMonth = () => setViewDate(new Date(year,month+1,1))
+    const monthName = calViewDate.toLocaleDateString("es-ES",{month:"long",year:"numeric"})
+    const prevMonth = () => setCalViewDate(new Date(year,month-1,1))
+    const nextMonth = () => setCalViewDate(new Date(year,month+1,1))
     const colorTurno = {M:"#6366f1",T:"#f59e0b",VAC:"#10b981",DSC:"#94a3b8","DSC*":"#64748b"}
     const bgTurno = {M:"#eef2ff",T:"#fffbeb",VAC:"#f0fdf4",DSC:"#f8fafc","DSC*":"#f1f5f9"}
-    const [selectedPerson,setSelectedPerson] = useState("Antonio")
     const days = []
     for(let i=0;i<(firstDay===0?6:firstDay-1);i++) days.push(null)
     for(let d=1;d<=daysInMonth;d++) days.push(d)
@@ -637,7 +676,7 @@ export default function App(){
         <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>📅 Turnos del equipo</h2>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
           {EQUIPO.map(p=>(
-            <button key={p} onClick={()=>setSelectedPerson(p)} style={{padding:"6px 14px",borderRadius:20,fontSize:13,fontWeight:600,cursor:"pointer",background:selectedPerson===p?"#6366f1":"#f8fafc",color:selectedPerson===p?"#fff":"#64748b",border:`2px solid ${selectedPerson===p?"#6366f1":"#e2e8f0"}`,fontFamily:"inherit"}}>
+            <button key={p} onClick={()=>setCalPerson(p)} style={{padding:"6px 14px",borderRadius:20,fontSize:13,fontWeight:600,cursor:"pointer",background:calPerson===p?"#6366f1":"#f8fafc",color:calPerson===p?"#fff":"#64748b",border:`2px solid ${calPerson===p?"#6366f1":"#e2e8f0"}`,fontFamily:"inherit"}}>
               {p}
             </button>
           ))}
@@ -656,7 +695,7 @@ export default function App(){
               if(!d) return <div key={i} />
               const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`
               const planning = PLANNING[dateStr]
-              const turno = planning?.[selectedPerson]||null
+              const turno = planning?.[calPerson]||null
               const isToday = dateStr===todayKey()
               const festivo = planning?.festivo
               return (
@@ -704,6 +743,7 @@ export default function App(){
           </div>
         </Card>
       ))}
+      {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:13,padding:"6px 0"}}>{savedMsg}</div>}
     </div>
   )
 
@@ -755,6 +795,20 @@ export default function App(){
         <Card><SectionTitle icon="🧹">Limpieza</SectionTitle><CheckBox label="Se ha limpiado" checked={turnoData.limpieza?.hecho||false} onChange={v=>updateTurno("limpieza",{...turnoData.limpieza,hecho:v})} />{turnoData.limpieza?.hecho&&(<div style={{marginTop:12}}><div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>{ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}</div><textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={3} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} /></div>)}</Card>
         <Card><SectionTitle icon="📦">Almacén y stock</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><CheckBox label="Repuesto desde fuera" checked={turnoData.repuestoFuera||false} onChange={v=>updateTurno("repuestoFuera",v)} /><CheckBox label="Repuesto desde dentro" checked={turnoData.repuestoDentro||false} onChange={v=>updateTurno("repuestoDentro",v)} /><CheckBox label="Almacén arreglado" checked={turnoData.almacenArreglado||false} onChange={v=>updateTurno("almacenArreglado",v)} /><CheckBox label="Ordenado el almacén" checked={turnoData.ordenadoAlmacen||false} onChange={v=>updateTurno("ordenadoAlmacen",v)} /><CheckBox label="Bajado cajas" checked={turnoData.bajadoCajas||false} onChange={v=>updateTurno("bajadoCajas",v)} /></div></Card>
         <Card><SectionTitle icon="📋">Control y revisión</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><CheckBox label="Control de stocks" checked={turnoData.stocks||false} onChange={v=>updateTurno("stocks",v)} /><CheckBox label="Revisión de caducidades" checked={turnoData.caducidades||false} onChange={v=>updateTurno("caducidades",v)} /></div></Card>
+        <Card>
+          <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
+          <CheckBox label="Temperatura registrada" checked={!!(turnoData.temperatura)} onChange={v=>{ if(!v) updateTurno("temperatura",null) }} />
+          {(turnoData.temperatura!==null&&turnoData.temperatura!==undefined||true)&&(
+            <div style={{marginTop:10,display:"flex",gap:10,alignItems:"center"}}>
+              <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="Ej: 4.5" style={{padding:"10px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:14,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",flex:1,boxSizing:"border-box"}} />
+              <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
+              {turnoData.temperatura&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20,background:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#d1fae5":"#fee2e2",color:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#065f46":"#dc2626"}}>{parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"}</span>}
+            </div>
+          )}
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
+        </Card>
+        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>{saving?"⏳ Guardando...":"💾 Guardar turno"}</button>
+        {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
       </div>
     )
   }
@@ -992,7 +1046,86 @@ export default function App(){
     )
   }
 
-  const tabContent = {resumen:renderResumen,calendario:renderCalendario,pedidos:renderPedidos,incidencias:renderIncidencias,encargos:renderEncargos,tareas:renderTareas,chat:renderChat,historial:renderHistorial,admin:renderAdmin}
+  // ── RENDER ANÁLISIS DE MARCA ─────────────────────────────────
+  const CRITERIOS_MARCA = [
+    {id:"ubicacion",icon:"🔍",label:"Ubicación en el lineal",desc:"Posición y altura en el lineal (nivel ojos, inferior, superior)."},
+    {id:"visibilidad",icon:"👁️",label:"Visibilidad y acceso",desc:"¿Es fácil de ver y alcanzar? ¿Está bien iluminado?"},
+    {id:"presentacion",icon:"🖥️",label:"Presentación de productos",desc:"Orden y presentación (homogeneidad, limpieza, facing correcto)."},
+    {id:"variedad",icon:"📊",label:"Variedad y gama ofrecida",desc:"¿Están representadas todas las líneas de la marca?"},
+    {id:"rotacion",icon:"🔄",label:"Rotación y ventas (ABC)",desc:"Productos A / B / C. % del total del lineal ocupado."},
+    {id:"stock",icon:"📦",label:"Stock y disponibilidad",desc:"¿Se detectan roturas de stock?"},
+    {id:"plv",icon:"🎯",label:"Material PLV",desc:"Displays, testers, cartelería de la marca."},
+    {id:"ofertas",icon:"🏷️",label:"Ofertas y promociones",desc:"¿Hay ofertas o promociones destacadas?"},
+    {id:"competencia",icon:"🏪",label:"Competencia adyacente",desc:"¿Qué marcas están cerca? Comparativa con competencia."},
+    {id:"formacion",icon:"👤",label:"Formación del equipo",desc:"¿El equipo conoce bien la marca?"},
+    {id:"pricing",icon:"💶",label:"Información y pricing",desc:"Precios e información clara y visible."},
+    {id:"reposicion",icon:"🔃",label:"Rotación y reposición",desc:"Caducidades y aplicación del FEFO."},
+    {id:"eventualidades",icon:"⚠️",label:"Eventualidades",desc:"Comentarios y problemas de clientes."},
+    {id:"mejoras",icon:"💡",label:"Sugerencias de mejora",desc:"Propuestas de mejora para el lineal."},
+  ]
+
+  const getMarcaKey = (persona) => `marca_${persona}_${todayKey()}`
+
+  const saveMarca = async(persona, data) => {
+    try{
+      await setDoc(doc(db,"marca",getMarcaKey(persona)),{persona,fecha:todayKey(),fechaLabel:todayLabel(),data,timestamp:new Date().toISOString()})
+      setSavedMsg("✓ Análisis guardado")
+      setTimeout(()=>setSavedMsg(""),2000)
+    }catch{setSavedMsg("❌ Error al guardar")}
+  }
+
+  const renderMarca = () => {
+    const currentData = marcaData[marcaPersona]||{}
+    const updateMarca = (id,field,value) => {
+      const updated = {...marcaData,[marcaPersona]:{...currentData,[id]:{...(currentData[id]||{}),[field]:value}}}
+      setMarcaData(updated)
+    }
+    const handleSaveMarca = () => saveMarca(marcaPersona, currentData)
+    return (
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>🏷️ Análisis de marca</h2>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {EQUIPO.map(p=>(
+            <button key={p} onClick={()=>setMarcaPersona(p)} style={{padding:"6px 14px",borderRadius:20,fontSize:13,fontWeight:600,cursor:"pointer",background:marcaPersona===p?"#6366f1":"#f8fafc",color:marcaPersona===p?"#fff":"#64748b",border:`2px solid ${marcaPersona===p?"#6366f1":"#e2e8f0"}`,fontFamily:"inherit"}}>{p}</button>
+          ))}
+        </div>
+        <Card style={{background:"linear-gradient(135deg,#eef2ff,#f5f3ff)",border:"1px solid #c7d2fe"}}>
+          <div style={{fontSize:14,color:"#4338ca",fontWeight:700}}>📋 Análisis del lineal de marca</div>
+          <div style={{fontSize:12,color:"#6366f1",marginTop:2}}>Responsable: {marcaPersona} · {todayLabel()}</div>
+        </Card>
+        {CRITERIOS_MARCA.map((c,idx)=>{
+          const val = currentData[c.id]||{}
+          return (
+            <Card key={c.id}>
+              <div style={{display:"flex",gap:10,marginBottom:10,alignItems:"flex-start"}}>
+                <div style={{width:28,height:28,borderRadius:8,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{c.icon}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,color:"#1e293b",fontSize:14}}>{idx+1}. {c.label}</div>
+                  <div style={{fontSize:12,color:"#94a3b8",marginTop:2}}>{c.desc}</div>
+                </div>
+                <div style={{display:"flex",gap:4,flexShrink:0}}>
+                  {["✓","~","✗"].map(r=>(
+                    <button key={r} onClick={()=>updateMarca(c.id,"rating",r)} style={{width:28,height:28,borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:13,background:val.rating===r?(r==="✓"?"#10b981":r==="~"?"#f59e0b":"#ef4444"):"#f1f5f9",color:val.rating===r?"#fff":"#94a3b8"}}>{r}</button>
+                  ))}
+                </div>
+              </div>
+              <textarea
+                value={val.obs||""}
+                onChange={e=>updateMarca(c.id,"obs",e.target.value)}
+                placeholder="Observaciones..."
+                rows={2}
+                style={{padding:"8px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:13,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box",resize:"vertical"}}
+              />
+            </Card>
+          )
+        })}
+        <button onClick={handleSaveMarca} style={{background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>💾 Guardar análisis</button>
+        {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
+      </div>
+    )
+  }
+
+  const tabContent = {resumen:renderResumen,calendario:renderCalendario,pedidos:renderPedidos,incidencias:renderIncidencias,encargos:renderEncargos,tareas:renderTareas,marca:renderMarca,chat:renderChat,historial:renderHistorial,admin:renderAdmin}
 
   return (
     <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:"#f8fafc",minHeight:"100vh",maxWidth:520,margin:"0 auto",position:"relative"}}>
