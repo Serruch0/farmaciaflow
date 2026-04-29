@@ -514,7 +514,7 @@ export default function App(){
 
   const tabs = [
     {id:"resumen",label:"🏠 Inicio"},
-    {id:"calendario",label:"📅 Turnos"},
+    ...(isAdmin?[{id:"calendario",label:"📅 Turnos"}]:[]),
     {id:"pedidos",label:"📦 Pedidos"},
     {id:"incidencias",label:"⚠️ Incid."},
     {id:"encargos",label:"💊 Encargos"},
