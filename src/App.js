@@ -743,13 +743,21 @@ export default function App(){
       <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
       {(turnoData.incidencias||[]).length===0&&<EmptyState text="Sin incidencias en este turno 🎉" />}
       {(turnoData.incidencias||[]).map(inc=>(
-        <Card key={inc.id} style={{borderLeft:"4px solid #f59e0b"}}>
+        <Card key={inc.id} style={{borderLeft:`4px solid ${inc.resuelta?"#10b981":"#f59e0b"}`,opacity:inc.resuelta?0.75:1}}>
           <div style={{display:"flex",justifyContent:"space-between"}}>
             <div style={{flex:1}}>
-              <div style={{fontWeight:700,color:"#92400e",fontSize:15}}>{inc.tipo}</div>
+              <div style={{fontWeight:700,color:inc.resuelta?"#065f46":"#92400e",fontSize:15,display:"flex",alignItems:"center",gap:8}}>
+                {inc.tipo}
+                {inc.resuelta&&<span style={{fontSize:12,fontWeight:600,color:"#10b981"}}>✓ Resuelta</span>}
+              </div>
               <div style={{color:"#64748b",fontSize:13,marginTop:4}}>{inc.descripcion}</div>
-              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>{inc.responsable&&<Badge text={inc.responsable} color="#8b5cf6" />}{inc.resuelta&&<Badge text="✓ Resuelta" color="#10b981" />}</div>
+              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>{inc.responsable&&<Badge text={inc.responsable} color="#8b5cf6" />}</div>
               {(inc.fotos||[]).length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}>{inc.fotos.map((url,i)=><img key={i} src={url} alt="foto" onClick={()=>window.open(url)} style={{width:60,height:60,objectFit:"cover",borderRadius:8,cursor:"pointer",border:"2px solid #e2e8f0"}} />)}</div>}
+              {!inc.resuelta&&(
+                <button onClick={()=>{const updated=(turnoData.incidencias||[]).map(i=>i.id===inc.id?{...i,resuelta:true}:i);const updatedData={...dayData,turnos:{...dayData.turnos,[activeTurno]:{...turnoData,incidencias:updated}}};setDayData(updatedData);autoSave(updatedData)}} style={{marginTop:10,padding:"8px 16px",background:"#d1fae5",border:"2px solid #10b981",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",color:"#065f46",fontFamily:"inherit",width:"100%"}}>
+                  ✅ Marcar como resuelta
+                </button>
+              )}
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0}}>
               <button onClick={()=>openModal("incidencia",inc)} style={editBtnStyle}>✏️</button>
@@ -854,8 +862,16 @@ export default function App(){
           <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
           <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/8`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
           {(td.pedidos||[]).length>0&&<Card><SectionTitle icon="📦">Pedidos</SectionTitle>{td.pedidos.map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:8}}><div style={{fontWeight:700,fontSize:14}}>{p.proveedor}</div>{p.descripcion&&<div style={{fontSize:13,color:"#64748b"}}>{p.descripcion}</div>}<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}><Badge text={p.estado} color={colorEstado[p.estado]||"#6366f1"} /></div></div>))}</Card>}
-          {(td.incidencias||[]).length>0&&<Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{td.incidencias.map((inc,i)=>(<div key={i} style={{padding:"10px 14px",background:"#fffbeb",borderRadius:10,marginBottom:8,borderLeft:"3px solid #f59e0b"}}><div style={{fontWeight:700,color:"#92400e",fontSize:14}}>{inc.tipo}</div><div style={{fontSize:13,color:"#64748b"}}>{inc.descripcion}</div>{inc.resuelta&&<Badge text="✓ Resuelta" color="#10b981" />}</div>))}</Card>}
-          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[{label:"Limpieza",done:td.limpieza?.hecho},{label:"Repuesto fuera",done:td.repuestoFuera},{label:"Repuesto dentro",done:td.repuestoDentro},{label:"Almacén arreglado",done:td.almacenArreglado},{label:"Ordenado almacén",done:td.ordenadoAlmacen},{label:"Bajado cajas",done:td.bajadoCajas},{label:"Control stocks",done:td.stocks},{label:"Caducidades",done:td.caducidades}].map(({label,done})=>(<div key={label} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done?"#065f46":"#94a3b8"}}><span>{done?"✅":"⬜"}</span>{label}</div>))}</div></Card>
+          {(td.incidencias||[]).length>0&&<Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{td.incidencias.map((inc,i)=>(<div key={i} style={{padding:"10px 14px",background:inc.resuelta?"#f0fdf4":"#fffbeb",borderRadius:10,marginBottom:8,borderLeft:`3px solid ${inc.resuelta?"#10b981":"#f59e0b"}`}}><div style={{fontWeight:700,color:inc.resuelta?"#065f46":"#92400e",fontSize:14}}>{inc.tipo}{inc.resuelta?" ✓":""}</div><div style={{fontSize:13,color:"#64748b"}}>{inc.descripcion}</div>{inc.responsable&&<div style={{marginTop:4}}><Badge text={inc.responsable} color="#8b5cf6" /></div>}</div>))}</Card>}
+          {((td.encargos||[]).length+(td.vacunas||[]).length+(td.formulasMagistrales||[]).length)>0&&(
+            <Card>
+              <SectionTitle icon="💊">Encargos y laboratorios del día</SectionTitle>
+              {(td.encargos||[]).map((e,i)=>(<div key={i} style={{padding:"8px 12px",background:"#f8fafc",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>🧪 {e.descripcion}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{e.cliente&&<Badge text={`👤 ${e.cliente}`} color="#6366f1" />}{e.estado&&<Badge text={e.estado} color="#f59e0b" />}</div></div>))}
+              {(td.vacunas||[]).map((v,i)=>(<div key={i} style={{padding:"8px 12px",background:"#eff6ff",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>💉 {v.vacuna}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{v.cliente&&<Badge text={`👤 ${v.cliente}`} color="#3b82f6" />}{v.dosis&&<Badge text={v.dosis} color="#6366f1" />}{v.estado&&<Badge text={v.estado} color="#f59e0b" />}</div></div>))}
+              {(td.formulasMagistrales||[]).map((f,i)=>(<div key={i} style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>⚗️ {f.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{f.cliente&&<Badge text={`👤 ${f.cliente}`} color="#10b981" />}{f.laboratorio&&<Badge text={`🏥 ${f.laboratorio}`} color="#6366f1" />}{f.estado&&<Badge text={f.estado} color="#f59e0b" />}</div></div>))}
+            </Card>
+          )}
+                    <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[{label:"Limpieza",done:td.limpieza?.hecho},{label:"Repuesto fuera",done:td.repuestoFuera},{label:"Repuesto dentro",done:td.repuestoDentro},{label:"Almacén arreglado",done:td.almacenArreglado},{label:"Ordenado almacén",done:td.ordenadoAlmacen},{label:"Bajado cajas",done:td.bajadoCajas},{label:"Control stocks",done:td.stocks},{label:"Caducidades",done:td.caducidades}].map(({label,done})=>(<div key={label} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done?"#065f46":"#94a3b8"}}><span>{done?"✅":"⬜"}</span>{label}</div>))}</div></Card>
         </div>
       )
     }
@@ -871,10 +887,12 @@ export default function App(){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
                 {["manana","tarde"].map(t=>{
                   const td=day.turnos?.[t]||emptyTurno()
+                  const labs = [...new Set([...(td.encargos||[]).map(e=>e.cliente).filter(Boolean),...(td.formulasMagistrales||[]).map(f=>f.laboratorio).filter(Boolean),...(td.vacunas||[]).map(v=>v.vacuna).filter(Boolean)])]
                   return(<div key={t} style={{background:t==="manana"?"#fffbeb":"#eef2ff",borderRadius:10,padding:"8px 10px",border:`1px solid ${t==="manana"?"#fde68a":"#c7d2fe"}`}}>
                     <div style={{fontSize:11,fontWeight:700,color:t==="manana"?"#92400e":"#4338ca",marginBottom:4}}>{t==="manana"?"☀️ Mañana":"🌙 Tarde"}</div>
                     <div style={{display:"flex",gap:4,flexWrap:"wrap"}}><Badge text={`📦${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️${(td.incidencias||[]).length}`} color="#f59e0b" /></div>
-                    {td.responsable&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>{td.responsable}</div>}
+                    {td.responsable&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>👤 {td.responsable}</div>}
+                    {labs.length>0&&<div style={{fontSize:11,color:"#6366f1",marginTop:4}}>🏥 {labs.slice(0,3).join(", ")}{labs.length>3?` +${labs.length-3}`:""}</div>}
                   </div>)
                 })}
               </div>
