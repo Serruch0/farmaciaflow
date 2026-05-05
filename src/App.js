@@ -504,6 +504,19 @@ export default function App(){
     return items
   })
 
+  // Incidencias no resueltas de hoy (ambos turnos)
+  const incidenciasAbiertas = ["manana","tarde"].flatMap(t=>{
+    const td=dayData.turnos?.[t]||emptyTurno()
+    return (td.incidencias||[]).filter(i=>!i.resuelta).map(i=>({...i,turno:t}))
+  })
+
+  const resolverIncidencia = async(turno, id) => {
+    const updated = (dayData.turnos?.[turno]?.incidencias||[]).map(i=>i.id===id?{...i,resuelta:true}:i)
+    const updatedData = {...dayData,turnos:{...dayData.turnos,[turno]:{...(dayData.turnos?.[turno]||emptyTurno()),incidencias:updated}}}
+    setDayData(updatedData)
+    await autoSave(updatedData)
+  }
+
   const filteredHistorial = useMemo(()=>historial.filter(d=>{
     if(!searchQuery) return true
     const q=searchQuery.toLowerCase()
@@ -592,11 +605,34 @@ export default function App(){
 
         {notaAnterior&&(<Card style={{borderLeft:"4px solid #f59e0b",background:"#fffbeb"}}><SectionTitle icon="📝">Nota del turno anterior</SectionTitle><div style={{fontSize:14,color:"#92400e"}}>{notaAnterior}</div></Card>)}
 
-        {pendientes.length>0&&(
+        {incidenciasAbiertas.length>0&&(
           <Card style={{borderLeft:"4px solid #ef4444",background:"#fef2f2"}}>
+            <SectionTitle icon="🚨">Incidencias abiertas ({incidenciasAbiertas.length})</SectionTitle>
+            {incidenciasAbiertas.map((inc,i)=>(
+              <div key={i} style={{padding:"10px 12px",background:"#fff",borderRadius:10,marginBottom:8,border:"1px solid #fecaca"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,color:"#dc2626",fontSize:13}}>{inc.tipo}</div>
+                    <div style={{fontSize:12,color:"#64748b",marginTop:2}}>{inc.descripcion}</div>
+                    <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>
+                      <Badge text={inc.turno==="manana"?"☀️ Mañana":"🌙 Tarde"} color="#6366f1" />
+                      {inc.responsable&&<Badge text={inc.responsable} color="#8b5cf6" />}
+                    </div>
+                  </div>
+                  <button onClick={()=>resolverIncidencia(inc.turno,inc.id)} style={{padding:"6px 12px",background:"#d1fae5",border:"2px solid #10b981",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",color:"#065f46",fontFamily:"inherit",flexShrink:0,whiteSpace:"nowrap"}}>
+                    ✅ Resolver
+                  </button>
+                </div>
+              </div>
+            ))}
+          </Card>
+        )}
+
+        {pendientes.length>0&&(
+          <Card style={{borderLeft:"4px solid #f59e0b",background:"#fffbeb"}}>
             <SectionTitle icon="🔔">Pendientes ({pendientes.length})</SectionTitle>
             {pendientes.slice(0,4).map((p,i)=>(<div key={i} style={{padding:"8px 12px",background:"#fff",borderRadius:10,marginBottom:8,fontSize:13}}><div style={{fontWeight:700,color:"#1e293b"}}>{p.tipo==="encargo"?"🧪 ":p.tipo==="vacuna"?"💉 ":"⚗️ "}{p.descripcion||p.vacuna||p.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{p.cliente&&<Badge text={p.cliente} color="#6366f1" />}{p.estado&&<Badge text={p.estado} color="#f59e0b" />}</div></div>))}
-            {pendientes.length>4&&<div style={{fontSize:12,color:"#ef4444",fontWeight:600}}>+{pendientes.length-4} más...</div>}
+            {pendientes.length>4&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:600}}>+{pendientes.length-4} más...</div>}
           </Card>
         )}
 
@@ -1301,7 +1337,7 @@ export default function App(){
             <div style={{fontSize:12,opacity:0.85}}>Gestión diaria del equipo</div>
           </div>
           {isAdmin&&<div style={{marginLeft:"auto"}}><Badge text="👑 Admin" color="#fbbf24" /></div>}
-          {!isAdmin&&pendientes.length>0&&<div style={{marginLeft:"auto",background:"#ef4444",color:"#fff",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700}}>🔔 {pendientes.length}</div>}
+          {!isAdmin&&(pendientes.length>0||incidenciasAbiertas.length>0)&&<div style={{marginLeft:"auto",background:"#ef4444",color:"#fff",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:700}}>🔔 {pendientes.length+incidenciasAbiertas.length}</div>}
         </div>
       </div>
       <div style={{background:"#fff",padding:"0 2px",borderBottom:"1px solid #f1f5f9",display:"flex",overflowX:"auto",position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 8px #0001"}}>
