@@ -882,75 +882,54 @@ export default function App(){
 
   // ── RENDER TAREAS ────────────────────────────────────────────
   const renderTareas = () => {
-    // Helper: toggle a person in a task array
     const togglePersonTask = (taskKey, persona) => {
       const current = turnoData[taskKey]||[]
-      const updated = current.includes(persona)
-        ? current.filter(p=>p!==persona)
-        : [...current, persona]
+      const updated = current.includes(persona) ? current.filter(p=>p!==persona) : [...current,persona]
       updateTurno(taskKey, updated)
     }
     const toggleLimpiezaHecho = (persona) => {
       const current = turnoData.limpieza?.hecho||[]
-      const updated = current.includes(persona)
-        ? current.filter(p=>p!==persona)
-        : [...current, persona]
+      const updated = current.includes(persona) ? current.filter(p=>p!==persona) : [...current,persona]
       updateTurno("limpieza", {...turnoData.limpieza, hecho:updated})
     }
-
-    // Count done tasks (at least 1 person)
     const tareaKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
     const tareasDone = [
-      ...(turnoData.limpieza?.hecho||[]).length>0?[1]:[],
-      ...tareaKeys.filter(k=>(turnoData[k]||[]).length>0).map(()=>1)
-    ].length
-    const totalTareas = 10
-    const pct = Math.round((tareasDone/totalTareas)*100)
+      (turnoData.limpieza?.hecho||[]).length>0,
+      ...tareaKeys.map(k=>(turnoData[k]||[]).length>0)
+    ].filter(Boolean).length
+    const pct = Math.round((tareasDone/10)*100)
 
-    // Multi-person task component
-    const TaskPersonas = ({taskKey, onToggle}) => {
-      const done = taskKey==="limpiezaHecho"
-        ? (turnoData.limpieza?.hecho||[])
-        : (turnoData[taskKey]||[])
+    const renderPersonaSelector = (taskKey, onToggle) => {
+      const done = taskKey==="limpiezaHecho" ? (turnoData.limpieza?.hecho||[]) : (turnoData[taskKey]||[])
       const toggle = onToggle || ((p)=>togglePersonTask(taskKey,p))
       return (
         <div style={{marginTop:10}}>
-          <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6}}>
-            {done.length>0
-              ? <span style={{color:"#10b981"}}>✓ {done.join(", ")}</span>
-              : <span style={{color:"#94a3b8"}}>¿Quién lo ha hecho?</span>
-            }
+          <div style={{fontSize:11,fontWeight:600,marginBottom:6,color:done.length>0?"#10b981":"#94a3b8"}}>
+            {done.length>0 ? `✓ ${done.join(" · ")}` : "¿Quién lo ha hecho?"}
           </div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
             {EQUIPO.map(p=>(
-              <button key={p} onClick={()=>toggle(p)} style={{
-                padding:"4px 10px",borderRadius:20,fontSize:12,fontWeight:600,
-                cursor:"pointer",fontFamily:"inherit",border:"none",
-                background:done.includes(p)?"#6366f1":"#f1f5f9",
-                color:done.includes(p)?"#fff":"#64748b",
-                transition:"all 0.15s"
-              }}>{p}</button>
+              <button key={p} onClick={()=>toggle(p)} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:done.includes(p)?"#6366f1":"#f1f5f9",color:done.includes(p)?"#fff":"#64748b",transition:"all 0.15s"}}>
+                {p}
+              </button>
             ))}
           </div>
         </div>
       )
     }
 
-    const TaskCard = ({icon, title, taskKey, children}) => {
-      const done = taskKey==="limpiezaHecho"
-        ? (turnoData.limpieza?.hecho||[])
-        : (turnoData[taskKey]||[])
+    const renderTaskItem = (icon, title, taskKey, onToggle) => {
+      const done = taskKey==="limpiezaHecho" ? (turnoData.limpieza?.hecho||[]) : (turnoData[taskKey]||[])
       const isDone = done.length>0
       return (
-        <div style={{padding:"12px 16px",background:isDone?"#f0fdf4":"#fff",borderRadius:12,border:`2px solid ${isDone?"#10b981":"#e2e8f0"}`,transition:"all 0.2s"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:isDone||children?8:0}}>
-            <div style={{width:32,height:32,borderRadius:10,background:isDone?"#10b981":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,transition:"all 0.2s"}}>{isDone?"✅":icon}</div>
+        <div style={{padding:"12px 14px",background:isDone?"#f0fdf4":"#fff",borderRadius:12,border:`2px solid ${isDone?"#10b981":"#e2e8f0"}`,transition:"all 0.2s"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:32,height:32,borderRadius:10,background:isDone?"#10b981":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{isDone?"✅":icon}</div>
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:14,color:isDone?"#065f46":"#1e293b"}}>{title}</div>
-              {isDone&&<div style={{fontSize:11,color:"#10b981",fontWeight:600,marginTop:1}}>{done.join(" · ")}</div>}
             </div>
           </div>
-          {children}
+          {renderPersonaSelector(taskKey, onToggle)}
         </div>
       )
     }
@@ -960,11 +939,10 @@ export default function App(){
         <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>✅ Tareas del día</h2>
         <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
 
-        {/* Progreso */}
         <Card>
-          <SectionTitle icon="📊">Progreso del turno</SectionTitle>
+          <SectionTitle icon="📊">Progreso</SectionTitle>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-            <span style={{color:"#64748b",fontSize:14}}>{tareasDone} de {totalTareas} completadas</span>
+            <span style={{color:"#64748b",fontSize:14}}>{tareasDone} de 10 completadas</span>
             <span style={{color:"#6366f1",fontWeight:700,fontSize:14}}>{pct}%</span>
           </div>
           <div style={{background:"#e2e8f0",borderRadius:20,height:12,overflow:"hidden"}}>
@@ -972,17 +950,14 @@ export default function App(){
           </div>
         </Card>
 
-        {/* Limpieza */}
         <Card>
           <SectionTitle icon="🧹">Limpieza</SectionTitle>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <TaskCard icon="🧹" title="Se ha limpiado" taskKey="limpiezaHecho">
-              <TaskPersonas taskKey="limpiezaHecho" onToggle={toggleLimpiezaHecho} />
-            </TaskCard>
+            {renderTaskItem("🧹","Se ha limpiado","limpiezaHecho",toggleLimpiezaHecho)}
             {(turnoData.limpieza?.hecho||[]).length>0&&(
               <div style={{paddingLeft:8}}>
-                <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6}}>Zonas:</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
                   {ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}
                 </div>
                 <textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
@@ -991,59 +966,37 @@ export default function App(){
           </div>
         </Card>
 
-        {/* Almacén y stock */}
         <Card>
           <SectionTitle icon="📦">Almacén y stock</SectionTitle>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {[
-              {key:"repuestoFuera",icon:"📤",label:"Repuesto desde fuera"},
-              {key:"repuestoDentro",icon:"📥",label:"Repuesto desde dentro"},
-              {key:"almacenArreglado",icon:"🗄️",label:"Almacén arreglado"},
-              {key:"ordenadoAlmacen",icon:"📋",label:"Ordenado el almacén"},
-              {key:"bajadoCajas",icon:"📦",label:"Bajado cajas"},
-            ].map(({key,icon,label})=>(
-              <TaskCard key={key} icon={icon} title={label} taskKey={key}>
-                <TaskPersonas taskKey={key} />
-              </TaskCard>
-            ))}
+            {renderTaskItem("📤","Repuesto desde fuera","repuestoFuera")}
+            {renderTaskItem("📥","Repuesto desde dentro","repuestoDentro")}
+            {renderTaskItem("🗄️","Almacén arreglado","almacenArreglado")}
+            {renderTaskItem("📋","Ordenado el almacén","ordenadoAlmacen")}
+            {renderTaskItem("📦","Bajado cajas","bajadoCajas")}
           </div>
         </Card>
 
-        {/* Control y revisión */}
         <Card>
           <SectionTitle icon="📋">Control y revisión</SectionTitle>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {[
-              {key:"stocks",icon:"🔢",label:"Control de stocks"},
-              {key:"caducidades",icon:"📅",label:"Revisión de caducidades"},
-              {key:"tarjetas",icon:"💳",label:"Comprobar tarjetas"},
-            ].map(({key,icon,label})=>(
-              <TaskCard key={key} icon={icon} title={label} taskKey={key}>
-                <TaskPersonas taskKey={key} />
-              </TaskCard>
-            ))}
+            {renderTaskItem("🔢","Control de stocks","stocks")}
+            {renderTaskItem("📅","Revisión de caducidades","caducidades")}
+            {renderTaskItem("💳","Comprobar tarjetas","tarjetas")}
           </div>
         </Card>
 
-        {/* Gestión de recetas */}
         <Card>
           <SectionTitle icon="📄">Gestión de recetas</SectionTitle>
-          <TaskCard icon="📄" title="Gestión de recetas realizada" taskKey="gestionRecetas">
-            <TaskPersonas taskKey="gestionRecetas" />
-          </TaskCard>
+          {renderTaskItem("📄","Gestión de recetas realizada","gestionRecetas")}
         </Card>
 
-        {/* Temperatura */}
         <Card>
           <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="Ej: 4.5" style={{...inputStyle,flex:1,boxSizing:"border-box"}} />
             <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
-            {turnoData.temperatura&&(
-              <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20,background:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#d1fae5":"#fee2e2",color:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#065f46":"#dc2626"}}>
-                {parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"}
-              </span>
-            )}
+            {turnoData.temperatura&&(<Badge text={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"} color={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#10b981":"#ef4444"} />)}
           </div>
           <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
         </Card>
@@ -1055,7 +1008,6 @@ export default function App(){
       </div>
     )
   }
-
 
     // ── RENDER HISTORIAL ─────────────────────────────────────────
   const renderHistorial = () => {
@@ -1203,7 +1155,7 @@ export default function App(){
       ...(d.turnos?.tarde?.temperatura?[{temp:d.turnos.tarde.temperatura,fecha:d.fecha,turno:"Tarde"}]:[])
     ]).filter(t=>parseFloat(t.temp)<2||parseFloat(t.temp)>8)
 
-    const StatCard = ({icon,value,label,sub,color}) => (
+    const renderStatCard = (icon,value,label,sub,color) => (
       <div style={{background:"#fff",borderRadius:14,padding:16,border:`1px solid ${color}33`,textAlign:"center"}}>
         <div style={{fontSize:22}}>{icon}</div>
         <div style={{fontSize:28,fontWeight:900,color,marginTop:4}}>{value}</div>
@@ -1219,10 +1171,10 @@ export default function App(){
 
         {/* Resumen rápido */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <StatCard icon="⚠️" value={incTotal} label="Incidencias" sub={`${incResueltas} resueltas`} color="#f59e0b" />
-          <StatCard icon="📦" value={pedTotal} label="Pedidos" sub={`${pedConIncidencia} con incid.`} color="#6366f1" />
-          <StatCard icon="✅" value={topPersonas[0]?.[0]||"—"} label="Más activa" sub={topPersonas[0]?`${topPersonas[0][1]} tareas`:"Sin datos"} color="#10b981" />
-          <StatCard icon="🌡️" value={tempFueraRango.length} label="Temp. fuera rango" sub="últimos 30 días" color={tempFueraRango.length>0?"#ef4444":"#10b981"} />
+          {renderStatCard("⚠️" value={incTotal} label="Incidencias" sub={`${incResueltas} resueltas`} color="#f59e0b" />
+          {renderStatCard("📦" value={pedTotal} label="Pedidos" sub={`${pedConIncidencia} con incid.`} color="#6366f1" />
+          {renderStatCard("✅" value={topPersonas[0]?.[0]||"—"} label="Más activa" sub={topPersonas[0]?`${topPersonas[0][1]} tareas`:"Sin datos"} color="#10b981" />
+          {renderStatCard("🌡️" value={tempFueraRango.length} label="Temp. fuera rango" sub="últimos 30 días" color={tempFueraRango.length>0?"#ef4444":"#10b981"} />
         </div>
 
         {/* Completitud de tareas últimos 7 días */}
