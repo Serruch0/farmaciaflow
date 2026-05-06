@@ -356,9 +356,7 @@ export default function App(){
   const [selectedDayTurno,setSelectedDayTurno] = useState("manana")
   const [editingHistorialDay,setEditingHistorialDay] = useState(null)
   const [searchQuery,setSearchQuery] = useState("")
-  const [chatMessages,setChatMessages] = useState([])
-  const [chatInput,setChatInput] = useState("")
-  const [chatUser,setChatUser] = useState("")
+
   const [anuncios,setAnuncios] = useState([])
   const [showAnuncioForm,setShowAnuncioForm] = useState(false)
   const [newAnuncio,setNewAnuncio] = useState({titulo:"",texto:"",tipo:"info"})
@@ -374,7 +372,7 @@ export default function App(){
   const [marcaDetalle,  setMarcaDetalle]  = useState(null)
   const [marcaNombres,  setMarcaNombres]  = useState({})
   const [marcaData,setMarcaData] = useState({})
-  const chatEndRef = useRef(null)
+
 
   const handleUnlock = (r) => {sessionStorage.setItem("ff_role",r);setRole(r)}
 
@@ -393,15 +391,7 @@ export default function App(){
     return ()=>unsub()
   },[role])
 
-  useEffect(()=>{
-    if(!role) return
-    const q = query(collection(db,"chat"),orderBy("timestamp","asc"))
-    const unsub = onSnapshot(q,(snap)=>{
-      setChatMessages(snap.docs.map(d=>({id:d.id,...d.data()})))
-      setTimeout(()=>chatEndRef.current?.scrollIntoView({behavior:"smooth"}),100)
-    })
-    return ()=>unsub()
-  },[role])
+
 
   useEffect(()=>{
     if(!role) return
@@ -474,11 +464,7 @@ export default function App(){
     try{await deleteDoc(doc(db,"jornadas",fechaKey));setSelectedDay(null)}catch{alert("Error al borrar.")}
   }
 
-  const sendMessage = async() => {
-    if(!chatInput.trim()||!chatUser) return
-    await addDoc(collection(db,"chat"),{texto:chatInput.trim(),autor:chatUser,timestamp:serverTimestamp(),fecha:new Date().toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"}),dia:todayKey()})
-    setChatInput("")
-  }
+
 
   const addAnuncio = async() => {
     if(!newAnuncio.titulo.trim()) return
@@ -569,9 +555,8 @@ export default function App(){
     {id:"encargos",label:"💊 Encargos"},
     {id:"tareas",label:"✅ Tareas"},
     {id:"marca",label:"🏷️ Marca"},
-    {id:"chat",label:"💬 Chat"},
     {id:"historial",label:"📋 Historial"},
-    ...(isAdmin?[{id:"admin",label:"👑 Admin"}]:[]),
+    ...(isAdmin?[{id:"kpis",label:"📊 KPIs"},{id:"admin",label:"👑 Admin"}]:[]),
   ]
 
   // ── RENDER RESUMEN ──────────────────────────────────────────
@@ -1071,31 +1056,8 @@ export default function App(){
     )
   }
 
-    // ── RENDER CHAT ──────────────────────────────────────────────
-  const renderChat = () => (
-    <div style={{display:"flex",flexDirection:"column",height:"70vh"}}>
-      <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b",marginBottom:12}}>💬 Chat del equipo</h2>
-      {!chatUser?(
-        <Card><SectionTitle icon="👤">¿Quién eres?</SectionTitle><div style={{display:"flex",flexWrap:"wrap",gap:8}}>{EQUIPO.map(n=>(<button key={n} onClick={()=>setChatUser(n)} style={{padding:"10px 18px",borderRadius:30,fontSize:14,fontWeight:600,cursor:"pointer",background:"#f8fafc",color:"#64748b",border:"2px solid #e2e8f0",fontFamily:"inherit"}}>{n}</button>))}</div></Card>
-      ):(
-        <>
-          <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,paddingBottom:12}}>
-            {chatMessages.length===0&&<EmptyState text="Sin mensajes todavía. ¡Sé la primera!" />}
-            {chatMessages.map(msg=>{const isMe=msg.autor===chatUser;return(<div key={msg.id} style={{display:"flex",justifyContent:isMe?"flex-end":"flex-start"}}><div style={{maxWidth:"80%",padding:"10px 14px",borderRadius:isMe?"16px 16px 4px 16px":"16px 16px 16px 4px",background:isMe?"linear-gradient(135deg,#6366f1,#818cf8)":"#fff",color:isMe?"#fff":"#1e293b",boxShadow:"0 2px 8px #0001",border:isMe?"none":"1px solid #f1f5f9"}}>{!isMe&&<div style={{fontSize:11,fontWeight:700,color:"#8b5cf6",marginBottom:4}}>{msg.autor}</div>}<div style={{fontSize:14}}>{msg.texto}</div><div style={{fontSize:11,opacity:0.7,marginTop:4,textAlign:"right"}}>{msg.fecha}</div></div></div>)})}
-            <div ref={chatEndRef} />
-          </div>
-          <div style={{display:"flex",gap:8,paddingTop:12,borderTop:"1px solid #f1f5f9"}}>
-            <div style={{fontSize:12,color:"#8b5cf6",fontWeight:600,alignSelf:"center",minWidth:50}}>{chatUser}</div>
-            <input value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()} placeholder="Escribe un mensaje..." style={{...inputStyle,flex:1}} />
-            <button onClick={sendMessage} style={{...addBtnStyle,padding:"10px 16px"}}>Enviar</button>
-          </div>
-          <button onClick={()=>setChatUser("")} style={{marginTop:8,background:"none",border:"none",color:"#94a3b8",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cambiar de usuario</button>
-        </>
-      )}
-    </div>
-  )
 
-  // ── RENDER HISTORIAL ─────────────────────────────────────────
+    // ── RENDER HISTORIAL ─────────────────────────────────────────
   const renderHistorial = () => {
     if(editingHistorialDay){
       const d=editingHistorialDay
@@ -1183,7 +1145,193 @@ export default function App(){
     )
   }
 
-  // ── RENDER ADMIN ─────────────────────────────────────────────
+  // ── RENDER KPIs ──────────────────────────────────────────────
+  const renderKPIs = () => {
+    const last30 = historial.slice(0,30)
+    const last7  = historial.slice(0,7)
+    const thisMonth = historial.filter(d=>d.fechaKey?.slice(0,7)===todayKey().slice(0,7))
+
+    // Incidencias
+    const allIncidencias = last30.flatMap(d=>[
+      ...(d.turnos?.manana?.incidencias||[]).map(i=>({...i,fecha:d.fecha,turno:"manana"})),
+      ...(d.turnos?.tarde?.incidencias||[]).map(i=>({...i,fecha:d.fecha,turno:"tarde"}))
+    ])
+    const incTotal = allIncidencias.length
+    const incResueltas = allIncidencias.filter(i=>i.resuelta).length
+    const incPorTipo = {}
+    allIncidencias.forEach(i=>{ incPorTipo[i.tipo]=(incPorTipo[i.tipo]||0)+1 })
+    const topTipo = Object.entries(incPorTipo).sort((a,b)=>b[1]-a[1]).slice(0,3)
+
+    // Pedidos
+    const allPedidos = last30.flatMap(d=>[
+      ...(d.turnos?.manana?.pedidos||[]),
+      ...(d.turnos?.tarde?.pedidos||[])
+    ])
+    const pedTotal = allPedidos.length
+    const pedConIncidencia = allPedidos.filter(p=>p.incidencia).length
+    const pedPorProv = {}
+    allPedidos.forEach(p=>{ if(p.proveedor) pedPorProv[p.proveedor]=(pedPorProv[p.proveedor]||0)+1 })
+    const topProv = Object.entries(pedPorProv).sort((a,b)=>b[1]-a[1]).slice(0,5)
+
+    // Tareas — % completado por día últimos 7
+    const tareasKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
+    const tareasCompletitud = last7.map(d=>{
+      let done=0, total=0
+      ;["manana","tarde"].forEach(t=>{
+        const td=d.turnos?.[t]||{}
+        tareasKeys.forEach(k=>{ total++; if((td[k]||[]).length>0) done++ })
+        if((td.limpieza?.hecho||[]).length>0) done++
+        total++
+      })
+      return {fecha:d.fechaKey?.slice(8)+"/"+d.fechaKey?.slice(5,7), pct:total>0?Math.round((done/total)*100):0}
+    }).reverse()
+
+    // Persona más activa en tareas
+    const personaTareas = {}
+    last30.forEach(d=>{
+      ;["manana","tarde"].forEach(t=>{
+        const td=d.turnos?.[t]||{}
+        tareasKeys.forEach(k=>{ (td[k]||[]).forEach(p=>{ personaTareas[p]=(personaTareas[p]||0)+1 }) })
+        ;(td.limpieza?.hecho||[]).forEach(p=>{ personaTareas[p]=(personaTareas[p]||0)+1 })
+      })
+    })
+    const topPersonas = Object.entries(personaTareas).sort((a,b)=>b[1]-a[1]).slice(0,5)
+
+    // Temperaturas fuera de rango
+    const tempFueraRango = last30.flatMap(d=>[
+      ...(d.turnos?.manana?.temperatura?[{temp:d.turnos.manana.temperatura,fecha:d.fecha,turno:"Mañana"}]:[]),
+      ...(d.turnos?.tarde?.temperatura?[{temp:d.turnos.tarde.temperatura,fecha:d.fecha,turno:"Tarde"}]:[])
+    ]).filter(t=>parseFloat(t.temp)<2||parseFloat(t.temp)>8)
+
+    const StatCard = ({icon,value,label,sub,color}) => (
+      <div style={{background:"#fff",borderRadius:14,padding:16,border:`1px solid ${color}33`,textAlign:"center"}}>
+        <div style={{fontSize:22}}>{icon}</div>
+        <div style={{fontSize:28,fontWeight:900,color,marginTop:4}}>{value}</div>
+        <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginTop:2}}>{label}</div>
+        {sub&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{sub}</div>}
+      </div>
+    )
+
+    return (
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>📊 KPIs del equipo</h2>
+        <div style={{fontSize:12,color:"#94a3b8",fontWeight:500,marginTop:-8}}>Últimos 30 días</div>
+
+        {/* Resumen rápido */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <StatCard icon="⚠️" value={incTotal} label="Incidencias" sub={`${incResueltas} resueltas`} color="#f59e0b" />
+          <StatCard icon="📦" value={pedTotal} label="Pedidos" sub={`${pedConIncidencia} con incid.`} color="#6366f1" />
+          <StatCard icon="✅" value={topPersonas[0]?.[0]||"—"} label="Más activa" sub={topPersonas[0]?`${topPersonas[0][1]} tareas`:"Sin datos"} color="#10b981" />
+          <StatCard icon="🌡️" value={tempFueraRango.length} label="Temp. fuera rango" sub="últimos 30 días" color={tempFueraRango.length>0?"#ef4444":"#10b981"} />
+        </div>
+
+        {/* Completitud de tareas últimos 7 días */}
+        <Card>
+          <SectionTitle icon="📅">Completitud de tareas — últimos 7 días</SectionTitle>
+          {tareasCompletitud.length===0?<EmptyState text="Sin datos todavía" />:(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {tareasCompletitud.map((d,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:48,fontSize:12,fontWeight:600,color:"#64748b",flexShrink:0}}>{d.fecha}</div>
+                  <div style={{flex:1,height:10,background:"#f1f5f9",borderRadius:20,overflow:"hidden"}}>
+                    <div style={{width:`${d.pct}%`,height:"100%",background:d.pct>=80?"#10b981":d.pct>=50?"#f59e0b":"#ef4444",borderRadius:20,transition:"width 0.4s"}} />
+                  </div>
+                  <div style={{fontSize:12,fontWeight:800,color:d.pct>=80?"#10b981":d.pct>=50?"#f59e0b":"#ef4444",minWidth:36,textAlign:"right"}}>{d.pct}%</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Ranking personas por tareas */}
+        <Card>
+          <SectionTitle icon="🏆">Ranking de participación en tareas</SectionTitle>
+          {topPersonas.length===0?<EmptyState text="Sin datos todavía" />:(
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {topPersonas.map(([persona,count],i)=>{
+                const max = topPersonas[0][1]
+                const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"]
+                return (
+                  <div key={persona} style={{display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{fontSize:18,flexShrink:0}}>{medals[i]||"•"}</div>
+                    <div style={{width:70,fontSize:13,fontWeight:600,color:"#1e293b",flexShrink:0}}>{persona}</div>
+                    <div style={{flex:1,height:10,background:"#f1f5f9",borderRadius:20,overflow:"hidden"}}>
+                      <div style={{width:`${Math.round((count/max)*100)}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#818cf8)",borderRadius:20}} />
+                    </div>
+                    <div style={{fontSize:12,fontWeight:700,color:"#6366f1",minWidth:30,textAlign:"right"}}>{count}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Tipos de incidencias */}
+        {topTipo.length>0&&(
+          <Card>
+            <SectionTitle icon="⚠️">Tipos de incidencia más frecuentes</SectionTitle>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {topTipo.map(([tipo,count])=>(
+                <div key={tipo} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a"}}>
+                  <span style={{fontSize:14,fontWeight:600,color:"#92400e"}}>{tipo}</span>
+                  <Badge text={`${count} veces`} color="#f59e0b" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Proveedores con más pedidos */}
+        {topProv.length>0&&(
+          <Card>
+            <SectionTitle icon="🏭">Proveedores — volumen de pedidos</SectionTitle>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {topProv.map(([prov,count],i)=>{
+                const max = topProv[0][1]
+                const incidProv = allPedidos.filter(p=>p.proveedor===prov&&p.incidencia).length
+                return (
+                  <div key={prov} style={{padding:"10px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                      <span style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{prov}</span>
+                      <div style={{display:"flex",gap:6}}>
+                        <Badge text={`${count} pedidos`} color="#6366f1" />
+                        {incidProv>0&&<Badge text={`⚠️ ${incidProv}`} color="#ef4444" />}
+                      </div>
+                    </div>
+                    <div style={{height:6,background:"#e2e8f0",borderRadius:20,overflow:"hidden"}}>
+                      <div style={{width:`${Math.round((count/max)*100)}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#818cf8)",borderRadius:20}} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Temperaturas fuera de rango */}
+        {tempFueraRango.length>0&&(
+          <Card style={{borderLeft:"4px solid #ef4444"}}>
+            <SectionTitle icon="🌡️">Alertas de temperatura</SectionTitle>
+            {tempFueraRango.map((t,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"#fef2f2",borderRadius:10,marginBottom:6,border:"1px solid #fecaca"}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700,color:"#dc2626"}}>{t.turno}</div>
+                  <div style={{fontSize:12,color:"#94a3b8"}}>{t.fecha}</div>
+                </div>
+                <Badge text={`${t.temp}°C`} color="#ef4444" />
+              </div>
+            ))}
+          </Card>
+        )}
+
+        <div style={{textAlign:"center",fontSize:12,color:"#94a3b8",padding:"8px 0"}}>
+          Datos basados en las últimas 30 jornadas registradas
+        </div>
+      </div>
+    )
+  }
+
+    // ── RENDER ADMIN ─────────────────────────────────────────────
   const renderAdmin = () => {
     if(!isAdmin) return null
     const last7 = historial.slice(0,7)
@@ -1637,7 +1785,7 @@ export default function App(){
     )
   }
 
-  const tabContent = {resumen:renderResumen,calendario:renderCalendario,pedidos:renderPedidos,incidencias:renderIncidencias,encargos:renderEncargos,tareas:renderTareas,marca:renderMarca,chat:renderChat,historial:renderHistorial,admin:renderAdmin}
+  const tabContent = {resumen:renderResumen,calendario:renderCalendario,pedidos:renderPedidos,incidencias:renderIncidencias,encargos:renderEncargos,tareas:renderTareas,marca:renderMarca,kpis:renderKPIs,historial:renderHistorial,admin:renderAdmin}
 
   return (
     <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:"#f8fafc",minHeight:"100vh",maxWidth:520,margin:"0 auto",position:"relative"}}>
