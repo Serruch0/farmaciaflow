@@ -429,7 +429,16 @@ export default function App(){
   if(!role) return <PinScreen onUnlock={handleUnlock} />
 
   const isAdmin = role==="admin"
-  const turnoData = dayData.turnos?.[activeTurno]||emptyTurno()
+  const rawTurno = dayData.turnos?.[activeTurno]||emptyTurno()
+  const turnoData = {
+    ...rawTurno,
+    limpieza:{
+      ...(rawTurno.limpieza||{}),
+      hecho: rawTurno.limpieza?.hecho||false,
+      zonas: Array.isArray(rawTurno.limpieza?.zonas) ? rawTurno.limpieza.zonas : [],
+      notas: rawTurno.limpieza?.notas||"",
+    }
+  }
 
   const saveDay = async(silent=false) => {
     if(!silent) setSaving(true)
@@ -504,8 +513,9 @@ export default function App(){
     autoSave(updatedData)
   }
   const toggleLimpiezaZona = (zona) => {
-    const zonas = turnoData.limpieza.zonas.includes(zona)?turnoData.limpieza.zonas.filter(z=>z!==zona):[...turnoData.limpieza.zonas,zona]
-    updateTurno("limpieza",{...turnoData.limpieza,zonas})
+    const zonas = Array.isArray(turnoData.limpieza?.zonas) ? turnoData.limpieza.zonas : []
+    const updated = zonas.includes(zona) ? zonas.filter(z=>z!==zona) : [...zonas,zona]
+    updateTurno("limpieza",{...(turnoData.limpieza||{}),zonas:updated})
   }
 
   const pendientes = historial.filter(d=>d.fechaKey!==todayKey()).flatMap(d=>{
