@@ -233,11 +233,11 @@ const todayLabel = () => new Date().toLocaleDateString("es-ES",{weekday:"long",y
 
 const emptyTurno = () => ({
   pedidos:[],incidencias:[],encargos:[],vacunas:[],formulasMagistrales:[],
-  limpieza:{zonas:[],hecho:[],notas:""},
-  stocks:[],caducidades:[],almacenArreglado:[],
-  repuestoFuera:[],repuestoDentro:[],ordenadoAlmacen:[],bajadoCajas:[],
-  tarjetas:[],
-  gestionRecetas:[],
+  limpieza:{zonas:[],hecho:false,notas:""},
+  stocks:false,caducidades:false,almacenArreglado:false,
+  repuestoFuera:false,repuestoDentro:false,ordenadoAlmacen:false,bajadoCajas:false,
+  tarjetas:false,
+  gestionRecetas:false,gestionRecetasQuien:"",
   responsable:"",equipoPresente:[],notaTraspaso:"",
   temperatura:null,
 })
@@ -429,26 +429,7 @@ export default function App(){
   if(!role) return <PinScreen onUnlock={handleUnlock} />
 
   const isAdmin = role==="admin"
-  // Normalize turno data - handle old boolean format from Firebase
-  const rawTurno = dayData.turnos?.[activeTurno]||emptyTurno()
-  const normArr = (v) => Array.isArray(v) ? v : (v ? ["✓"] : [])
-  const turnoData = {
-    ...rawTurno,
-    stocks: normArr(rawTurno.stocks),
-    caducidades: normArr(rawTurno.caducidades),
-    almacenArreglado: normArr(rawTurno.almacenArreglado),
-    repuestoFuera: normArr(rawTurno.repuestoFuera),
-    repuestoDentro: normArr(rawTurno.repuestoDentro),
-    ordenadoAlmacen: normArr(rawTurno.ordenadoAlmacen),
-    bajadoCajas: normArr(rawTurno.bajadoCajas),
-    tarjetas: normArr(rawTurno.tarjetas),
-    gestionRecetas: normArr(rawTurno.gestionRecetas),
-    limpieza: {
-      ...rawTurno.limpieza,
-      hecho: normArr(rawTurno.limpieza?.hecho),
-      zonas: Array.isArray(rawTurno.limpieza?.zonas) ? rawTurno.limpieza.zonas : [],
-    }
-  }
+  const turnoData = dayData.turnos?.[activeTurno]||emptyTurno()
 
   const saveDay = async(silent=false) => {
     if(!silent) setSaving(true)
@@ -901,63 +882,12 @@ export default function App(){
 
   // ── RENDER TAREAS ────────────────────────────────────────────
   const renderTareas = () => {
-    const togglePersonTask = (taskKey, persona) => {
-      const current = turnoData[taskKey]||[]
-      const updated = current.includes(persona) ? current.filter(p=>p!==persona) : [...current,persona]
-      updateTurno(taskKey, updated)
-    }
-    const toggleLimpiezaHecho = (persona) => {
-      const current = turnoData.limpieza?.hecho||[]
-      const updated = current.includes(persona) ? current.filter(p=>p!==persona) : [...current,persona]
-      updateTurno("limpieza", {...turnoData.limpieza, hecho:updated})
-    }
-    const tareaKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
-    const tareasDone = [
-      (turnoData.limpieza?.hecho||[]).length>0,
-      ...tareaKeys.map(k=>(turnoData[k]||[]).length>0)
-    ].filter(Boolean).length
+    const tareasDone = [turnoData.stocks,turnoData.caducidades,turnoData.almacenArreglado,turnoData.repuestoFuera,turnoData.repuestoDentro,turnoData.ordenadoAlmacen,turnoData.bajadoCajas,turnoData.limpieza?.hecho,turnoData.tarjetas,turnoData.gestionRecetas].filter(Boolean).length
     const pct = Math.round((tareasDone/10)*100)
-
-    const renderPersonaSelector = (taskKey, onToggle) => {
-      const done = taskKey==="limpiezaHecho" ? (turnoData.limpieza?.hecho||[]) : (turnoData[taskKey]||[])
-      const toggle = onToggle || ((p)=>togglePersonTask(taskKey,p))
-      return (
-        <div style={{marginTop:10}}>
-          <div style={{fontSize:11,fontWeight:600,marginBottom:6,color:done.length>0?"#10b981":"#94a3b8"}}>
-            {done.length>0 ? `✓ ${done.join(" · ")}` : "¿Quién lo ha hecho?"}
-          </div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            {EQUIPO.map(p=>(
-              <button key={p} onClick={()=>toggle(p)} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",border:"none",background:done.includes(p)?"#6366f1":"#f1f5f9",color:done.includes(p)?"#fff":"#64748b",transition:"all 0.15s"}}>
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-      )
-    }
-
-    const renderTaskItem = (icon, title, taskKey, onToggle) => {
-      const done = taskKey==="limpiezaHecho" ? (turnoData.limpieza?.hecho||[]) : (turnoData[taskKey]||[])
-      const isDone = done.length>0
-      return (
-        <div style={{padding:"12px 14px",background:isDone?"#f0fdf4":"#fff",borderRadius:12,border:`2px solid ${isDone?"#10b981":"#e2e8f0"}`,transition:"all 0.2s"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:32,height:32,borderRadius:10,background:isDone?"#10b981":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{isDone?"✅":icon}</div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:14,color:isDone?"#065f46":"#1e293b"}}>{title}</div>
-            </div>
-          </div>
-          {renderPersonaSelector(taskKey, onToggle)}
-        </div>
-      )
-    }
-
     return (
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>✅ Tareas del día</h2>
         <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
-
         <Card>
           <SectionTitle icon="📊">Progreso</SectionTitle>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
@@ -968,48 +898,50 @@ export default function App(){
             <div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#10b981)",borderRadius:20,transition:"width 0.4s"}} />
           </div>
         </Card>
-
         <Card>
           <SectionTitle icon="🧹">Limpieza</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {renderTaskItem("🧹","Se ha limpiado","limpiezaHecho",toggleLimpiezaHecho)}
-            {(turnoData.limpieza?.hecho||[]).length>0&&(
-              <div style={{paddingLeft:8}}>
-                <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6}}>Zonas:</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
-                  {ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}
-                </div>
-                <textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
+          <CheckBox label="Se ha limpiado" checked={turnoData.limpieza?.hecho||false} onChange={v=>updateTurno("limpieza",{...turnoData.limpieza,hecho:v})} />
+          {turnoData.limpieza?.hecho&&(
+            <div style={{marginTop:12}}>
+              <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+                {ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}
               </div>
-            )}
-          </div>
+              <textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
+            </div>
+          )}
         </Card>
-
         <Card>
           <SectionTitle icon="📦">Almacén y stock</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {renderTaskItem("📤","Repuesto desde fuera","repuestoFuera")}
-            {renderTaskItem("📥","Repuesto desde dentro","repuestoDentro")}
-            {renderTaskItem("🗄️","Almacén arreglado","almacenArreglado")}
-            {renderTaskItem("📋","Ordenado el almacén","ordenadoAlmacen")}
-            {renderTaskItem("📦","Bajado cajas","bajadoCajas")}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <CheckBox label="Repuesto desde fuera" checked={turnoData.repuestoFuera||false} onChange={v=>updateTurno("repuestoFuera",v)} />
+            <CheckBox label="Repuesto desde dentro" checked={turnoData.repuestoDentro||false} onChange={v=>updateTurno("repuestoDentro",v)} />
+            <CheckBox label="Almacén arreglado" checked={turnoData.almacenArreglado||false} onChange={v=>updateTurno("almacenArreglado",v)} />
+            <CheckBox label="Ordenado el almacén" checked={turnoData.ordenadoAlmacen||false} onChange={v=>updateTurno("ordenadoAlmacen",v)} />
+            <CheckBox label="Bajado cajas" checked={turnoData.bajadoCajas||false} onChange={v=>updateTurno("bajadoCajas",v)} />
           </div>
         </Card>
-
         <Card>
           <SectionTitle icon="📋">Control y revisión</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {renderTaskItem("🔢","Control de stocks","stocks")}
-            {renderTaskItem("📅","Revisión de caducidades","caducidades")}
-            {renderTaskItem("💳","Comprobar tarjetas","tarjetas")}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <CheckBox label="Control de stocks" checked={turnoData.stocks||false} onChange={v=>updateTurno("stocks",v)} />
+            <CheckBox label="Revisión de caducidades" checked={turnoData.caducidades||false} onChange={v=>updateTurno("caducidades",v)} />
+            <CheckBox label="Comprobar tarjetas" checked={turnoData.tarjetas||false} onChange={v=>updateTurno("tarjetas",v)} />
           </div>
         </Card>
-
         <Card>
           <SectionTitle icon="📄">Gestión de recetas</SectionTitle>
-          {renderTaskItem("📄","Gestión de recetas realizada","gestionRecetas")}
+          <CheckBox label="Gestión de recetas realizada" checked={turnoData.gestionRecetas||false} onChange={v=>updateTurno("gestionRecetas",v)} />
+          {turnoData.gestionRecetas&&(
+            <div style={{marginTop:10}}>
+              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>¿Quién lo ha gestionado?</label>
+              <select value={turnoData.gestionRecetasQuien||""} onChange={e=>updateTurno("gestionRecetasQuien",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>
+                <option value="">Seleccionar...</option>
+                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          )}
         </Card>
-
         <Card>
           <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -1019,7 +951,6 @@ export default function App(){
           </div>
           <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
         </Card>
-
         <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>
           {saving?"⏳ Guardando...":"💾 Guardar turno"}
         </button>
@@ -1028,96 +959,7 @@ export default function App(){
     )
   }
 
-    // ── RENDER HISTORIAL ─────────────────────────────────────────
-  const renderHistorial = () => {
-    if(editingHistorialDay){
-      const d=editingHistorialDay
-      const updateH=(turno,key,value)=>setEditingHistorialDay(prev=>prev?{...prev,turnos:{...prev.turnos,[turno]:{...(prev.turnos?.[turno]||emptyTurno()),[key]:value}}}:null)
-      const HCB=({label,checked,onChange})=>(<button onClick={()=>onChange(!checked)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:checked?"#d1fae5":"#fff",border:`2px solid ${checked?"#10b981":"#e2e8f0"}`,borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:14,color:checked?"#065f46":"#475569",fontWeight:checked?600:400,width:"100%",textAlign:"left"}}><span style={{fontSize:18}}>{checked?"✅":"⬜"}</span>{label}</button>)
-      const td=d.turnos?.[selectedDayTurno]||emptyTurno()
-      return (
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setEditingHistorialDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Cancelar</button><h2 style={{fontSize:16,fontWeight:800,color:"#1e293b",flex:1}}>✏️ Editar jornada</h2></div>
-          <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
-          <Card><SectionTitle icon="📋">Datos</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:10}}><select value={td.responsable||""} onChange={e=>updateH(selectedDayTurno,"responsable",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}><option value="">Responsable...</option>{EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}</select><textarea value={td.notaTraspaso||""} onChange={e=>updateH(selectedDayTurno,"notaTraspaso",e.target.value)} placeholder="Nota de traspaso..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} /></div></Card>
-          <Card><SectionTitle icon="📦">Pedidos</SectionTitle>{(td.pedidos||[]).map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:10}}><div style={{display:"flex",flexDirection:"column",gap:6}}><input value={p.proveedor||""} onChange={e=>{const arr=[...td.pedidos];arr[i]={...arr[i],proveedor:e.target.value};updateH(selectedDayTurno,"pedidos",arr)}} placeholder="Proveedor" style={{...inputStyle,width:"100%",boxSizing:"border-box"}} /><select value={p.estado||"Recibido"} onChange={e=>{const arr=[...td.pedidos];arr[i]={...arr[i],estado:e.target.value};updateH(selectedDayTurno,"pedidos",arr)}} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>{ESTADOS_PEDIDO.map(o=><option key={o} value={o}>{o}</option>)}</select><button onClick={()=>updateH(selectedDayTurno,"pedidos",td.pedidos.filter((_,j)=>j!==i))} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#ef4444",alignSelf:"flex-start"}}>🗑 Eliminar</button></div></div>))}<button onClick={()=>updateH(selectedDayTurno,"pedidos",[...(td.pedidos||[]),{id:Date.now(),proveedor:"",estado:"Recibido"}])} style={addBtnStyle}>+ Añadir pedido</button></Card>
-          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><HCB label="Limpieza" checked={td.limpieza?.hecho||false} onChange={v=>updateH(selectedDayTurno,"limpieza",{...td.limpieza,hecho:v})} /><HCB label="Repuesto desde fuera" checked={td.repuestoFuera||false} onChange={v=>updateH(selectedDayTurno,"repuestoFuera",v)} /><HCB label="Repuesto desde dentro" checked={td.repuestoDentro||false} onChange={v=>updateH(selectedDayTurno,"repuestoDentro",v)} /><HCB label="Almacén arreglado" checked={td.almacenArreglado||false} onChange={v=>updateH(selectedDayTurno,"almacenArreglado",v)} /><HCB label="Ordenado almacén" checked={td.ordenadoAlmacen||false} onChange={v=>updateH(selectedDayTurno,"ordenadoAlmacen",v)} /><HCB label="Bajado cajas" checked={td.bajadoCajas||false} onChange={v=>updateH(selectedDayTurno,"bajadoCajas",v)} /><HCB label="Control de stocks" checked={td.stocks||false} onChange={v=>updateH(selectedDayTurno,"stocks",v)} /><HCB label="Revisión caducidades" checked={td.caducidades||false} onChange={v=>updateH(selectedDayTurno,"caducidades",v)} /></div></Card>
-          <div style={{display:"flex",gap:10}}><button onClick={()=>setEditingHistorialDay(null)} style={{flex:1,padding:12,border:"2px solid #e2e8f0",borderRadius:10,background:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:600,cursor:"pointer",color:"#64748b"}}>Cancelar</button><button onClick={()=>saveHistorialDay(d)} style={{flex:2,padding:12,border:"none",borderRadius:10,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Guardar</button></div>
-        </div>
-      )
-    }
-    if(selectedDay){
-      const d=selectedDay
-      const td=d.turnos?.[selectedDayTurno]||emptyTurno()
-      const tareasDone=[(td.stocks||[]).length>0,(td.caducidades||[]).length>0,(td.almacenArreglado||[]).length>0,(td.repuestoFuera||[]).length>0,(td.repuestoDentro||[]).length>0,(td.ordenadoAlmacen||[]).length>0,(td.bajadoCajas||[]).length>0,(td.limpieza?.hecho||[]).length>0,(td.tarjetas||[]).length>0,(td.gestionRecetas||[]).length>0].filter(Boolean).length
-      return (
-        <div style={{display:"flex",flexDirection:"column",gap:14}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>setSelectedDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button><h2 style={{fontSize:14,fontWeight:800,color:"#1e293b",flex:1}}>{d.fecha}</h2><button onClick={()=>setEditingHistorialDay({...d})} style={{background:"#eff6ff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#3b82f6"}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>deleteDay(d.fechaKey)} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#ef4444"}}>🗑</button>}</div>
-          <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
-          <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/10`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
-          {(td.pedidos||[]).length>0&&<Card><SectionTitle icon="📦">Pedidos</SectionTitle>{td.pedidos.map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:8}}><div style={{fontWeight:700,fontSize:14}}>{p.proveedor}</div>{p.descripcion&&<div style={{fontSize:13,color:"#64748b"}}>{p.descripcion}</div>}<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}><Badge text={p.estado} color={colorEstado[p.estado]||"#6366f1"} /></div></div>))}</Card>}
-          {(td.incidencias||[]).length>0&&<Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{td.incidencias.map((inc,i)=>(<div key={i} style={{padding:"10px 14px",background:inc.resuelta?"#f0fdf4":"#fffbeb",borderRadius:10,marginBottom:8,borderLeft:`3px solid ${inc.resuelta?"#10b981":"#f59e0b"}`}}><div style={{fontWeight:700,color:inc.resuelta?"#065f46":"#92400e",fontSize:14}}>{inc.tipo}{inc.resuelta?" ✓":""}</div><div style={{fontSize:13,color:"#64748b"}}>{inc.descripcion}</div>{inc.responsable&&<div style={{marginTop:4}}><Badge text={inc.responsable} color="#8b5cf6" /></div>}</div>))}</Card>}
-          {((td.encargos||[]).length+(td.vacunas||[]).length+(td.formulasMagistrales||[]).length)>0&&(
-            <Card>
-              <SectionTitle icon="💊">Encargos y laboratorios del día</SectionTitle>
-              {(td.encargos||[]).map((e,i)=>(<div key={i} style={{padding:"8px 12px",background:"#f8fafc",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>🧪 {e.descripcion}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{e.cliente&&<Badge text={`👤 ${e.cliente}`} color="#6366f1" />}{e.estado&&<Badge text={e.estado} color="#f59e0b" />}</div></div>))}
-              {(td.vacunas||[]).map((v,i)=>(<div key={i} style={{padding:"8px 12px",background:"#eff6ff",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>💉 {v.vacuna}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{v.cliente&&<Badge text={`👤 ${v.cliente}`} color="#3b82f6" />}{v.dosis&&<Badge text={v.dosis} color="#6366f1" />}{v.estado&&<Badge text={v.estado} color="#f59e0b" />}</div></div>))}
-              {(td.formulasMagistrales||[]).map((f,i)=>(<div key={i} style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>⚗️ {f.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{f.cliente&&<Badge text={`👤 ${f.cliente}`} color="#10b981" />}{f.laboratorio&&<Badge text={`🏥 ${f.laboratorio}`} color="#6366f1" />}{f.estado&&<Badge text={f.estado} color="#f59e0b" />}</div></div>))}
-            </Card>
-          )}
-                    <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[
-  {label:"Limpieza",done:(td.limpieza?.hecho||[])},
-  {label:"Repuesto fuera",done:(td.repuestoFuera||[])},
-  {label:"Repuesto dentro",done:(td.repuestoDentro||[])},
-  {label:"Almacén arreglado",done:(td.almacenArreglado||[])},
-  {label:"Ordenado almacén",done:(td.ordenadoAlmacen||[])},
-  {label:"Bajado cajas",done:(td.bajadoCajas||[])},
-  {label:"Control stocks",done:(td.stocks||[])},
-  {label:"Caducidades",done:(td.caducidades||[])},
-  {label:"Tarjetas",done:(td.tarjetas||[])},
-  {label:"Gestión recetas",done:(td.gestionRecetas||[])},
-].map(({label,done})=>(<div key={label} style={{marginBottom:4}}>
-  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done.length>0?"#065f46":"#94a3b8"}}>
-    <span>{done.length>0?"✅":"⬜"}</span>
-    <span style={{fontWeight:done.length>0?600:400}}>{label}</span>
-  </div>
-  {done.length>0&&<div style={{fontSize:11,color:"#10b981",marginLeft:26}}>{done.join(" · ")}</div>}
-</div>))}</div></Card>
-        </div>
-      )
-    }
-    return (
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>📋 Historial</h2>
-        <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Buscar por fecha, responsable, proveedor..." style={{...inputStyle,width:"100%",boxSizing:"border-box"}} />
-        {filteredHistorial.length===0&&<EmptyState text="No hay jornadas guardadas" />}
-        {filteredHistorial.map(day=>(
-          <Card key={day.fechaKey} style={{borderLeft:"4px solid #6366f1",cursor:"pointer"}}>
-            <div onClick={()=>setSelectedDay(day)}>
-              <div style={{fontWeight:700,color:"#6366f1",fontSize:14}}>{day.fecha||day.fechaKey}</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
-                {["manana","tarde"].map(t=>{
-                  const td=day.turnos?.[t]||emptyTurno()
-                  const labs = [...new Set([...(td.encargos||[]).map(e=>e.cliente).filter(Boolean),...(td.formulasMagistrales||[]).map(f=>f.laboratorio).filter(Boolean),...(td.vacunas||[]).map(v=>v.vacuna).filter(Boolean)])]
-                  return(<div key={t} style={{background:t==="manana"?"#fffbeb":"#eef2ff",borderRadius:10,padding:"8px 10px",border:`1px solid ${t==="manana"?"#fde68a":"#c7d2fe"}`}}>
-                    <div style={{fontSize:11,fontWeight:700,color:t==="manana"?"#92400e":"#4338ca",marginBottom:4}}>{t==="manana"?"☀️ Mañana":"🌙 Tarde"}</div>
-                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}><Badge text={`📦${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️${(td.incidencias||[]).length}`} color="#f59e0b" /></div>
-                    {td.responsable&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>👤 {td.responsable}</div>}
-                    {labs.length>0&&<div style={{fontSize:11,color:"#6366f1",marginTop:4}}>🏥 {labs.slice(0,3).join(", ")}{labs.length>3?` +${labs.length-3}`:""}</div>}
-                  </div>)
-                })}
-              </div>
-              <div style={{marginTop:8,fontSize:12,color:"#a5b4fc",fontWeight:600}}>Toca para ver el detalle →</div>
-            </div>
-            {isAdmin&&<button onClick={()=>deleteDay(day.fechaKey)} style={{marginTop:10,background:"#fee2e2",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#ef4444"}}>🗑 Borrar jornada</button>}
-          </Card>
-        ))}
-      </div>
-    )
-  }
-
-  // ── RENDER KPIs ──────────────────────────────────────────────
-  const renderKPIs = () => {
+    const renderKPIs = () => {
     const last30 = historial.slice(0,30)
     const last7  = historial.slice(0,7)
     const thisMonth = historial.filter(d=>d.fechaKey?.slice(0,7)===todayKey().slice(0,7))
@@ -1146,13 +988,12 @@ export default function App(){
 
     // Tareas — % completado por día últimos 7
     const tareasKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
-    const normA = (v) => Array.isArray(v)?v:(v?["✓"]:[])
     const tareasCompletitud = last7.map(d=>{
       let done=0, total=0
       ;["manana","tarde"].forEach(t=>{
         const td=d.turnos?.[t]||{}
-        tareasKeys.forEach(k=>{ total++; if(normA(td[k]).length>0) done++ })
-        if(normA(td.limpieza?.hecho).length>0) done++
+        tareasKeys.forEach(k=>{ total++; if(td[k]) done++ })
+        if(td.limpieza?.hecho) done++
         total++
       })
       return {fecha:d.fechaKey?.slice(8)+"/"+d.fechaKey?.slice(5,7), pct:total>0?Math.round((done/total)*100):0}
@@ -1163,8 +1004,7 @@ export default function App(){
     last30.forEach(d=>{
       ;["manana","tarde"].forEach(t=>{
         const td=d.turnos?.[t]||{}
-        tareasKeys.forEach(k=>{ normA(td[k]).forEach(p=>{ if(typeof p==="string"&&p!=="✓") personaTareas[p]=(personaTareas[p]||0)+1 }) })
-        normA(td.limpieza?.hecho).forEach(p=>{ if(typeof p==="string"&&p!=="✓") personaTareas[p]=(personaTareas[p]||0)+1 })
+        if(td.responsable) personaTareas[td.responsable]=(personaTareas[td.responsable]||0)+1
       })
     })
     const topPersonas = Object.entries(personaTareas).sort((a,b)=>b[1]-a[1]).slice(0,5)
