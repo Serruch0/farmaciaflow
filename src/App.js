@@ -429,7 +429,26 @@ export default function App(){
   if(!role) return <PinScreen onUnlock={handleUnlock} />
 
   const isAdmin = role==="admin"
-  const turnoData = dayData.turnos?.[activeTurno]||emptyTurno()
+  // Normalize turno data - handle old boolean format from Firebase
+  const rawTurno = dayData.turnos?.[activeTurno]||emptyTurno()
+  const normArr = (v) => Array.isArray(v) ? v : (v ? ["✓"] : [])
+  const turnoData = {
+    ...rawTurno,
+    stocks: normArr(rawTurno.stocks),
+    caducidades: normArr(rawTurno.caducidades),
+    almacenArreglado: normArr(rawTurno.almacenArreglado),
+    repuestoFuera: normArr(rawTurno.repuestoFuera),
+    repuestoDentro: normArr(rawTurno.repuestoDentro),
+    ordenadoAlmacen: normArr(rawTurno.ordenadoAlmacen),
+    bajadoCajas: normArr(rawTurno.bajadoCajas),
+    tarjetas: normArr(rawTurno.tarjetas),
+    gestionRecetas: normArr(rawTurno.gestionRecetas),
+    limpieza: {
+      ...rawTurno.limpieza,
+      hecho: normArr(rawTurno.limpieza?.hecho),
+      zonas: Array.isArray(rawTurno.limpieza?.zonas) ? rawTurno.limpieza.zonas : [],
+    }
+  }
 
   const saveDay = async(silent=false) => {
     if(!silent) setSaving(true)
@@ -1127,12 +1146,13 @@ export default function App(){
 
     // Tareas — % completado por día últimos 7
     const tareasKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
+    const normA = (v) => Array.isArray(v)?v:(v?["✓"]:[])
     const tareasCompletitud = last7.map(d=>{
       let done=0, total=0
       ;["manana","tarde"].forEach(t=>{
         const td=d.turnos?.[t]||{}
-        tareasKeys.forEach(k=>{ total++; if((td[k]||[]).length>0) done++ })
-        if((td.limpieza?.hecho||[]).length>0) done++
+        tareasKeys.forEach(k=>{ total++; if(normA(td[k]).length>0) done++ })
+        if(normA(td.limpieza?.hecho).length>0) done++
         total++
       })
       return {fecha:d.fechaKey?.slice(8)+"/"+d.fechaKey?.slice(5,7), pct:total>0?Math.round((done/total)*100):0}
@@ -1143,8 +1163,8 @@ export default function App(){
     last30.forEach(d=>{
       ;["manana","tarde"].forEach(t=>{
         const td=d.turnos?.[t]||{}
-        tareasKeys.forEach(k=>{ (td[k]||[]).forEach(p=>{ personaTareas[p]=(personaTareas[p]||0)+1 }) })
-        ;(td.limpieza?.hecho||[]).forEach(p=>{ personaTareas[p]=(personaTareas[p]||0)+1 })
+        tareasKeys.forEach(k=>{ normA(td[k]).forEach(p=>{ if(typeof p==="string"&&p!=="✓") personaTareas[p]=(personaTareas[p]||0)+1 }) })
+        normA(td.limpieza?.hecho).forEach(p=>{ if(typeof p==="string"&&p!=="✓") personaTareas[p]=(personaTareas[p]||0)+1 })
       })
     })
     const topPersonas = Object.entries(personaTareas).sort((a,b)=>b[1]-a[1]).slice(0,5)
