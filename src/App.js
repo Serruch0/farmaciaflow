@@ -233,11 +233,11 @@ const todayLabel = () => new Date().toLocaleDateString("es-ES",{weekday:"long",y
 
 const emptyTurno = () => ({
   pedidos:[],incidencias:[],encargos:[],vacunas:[],formulasMagistrales:[],
-  limpieza:{zonas:[],hecho:false,notas:""},
-  stocks:false,caducidades:false,almacenArreglado:false,
-  repuestoFuera:false,repuestoDentro:false,ordenadoAlmacen:false,bajadoCajas:false,
-  tarjetas:false,
-  gestionRecetas:false,gestionRecetasQuien:"",
+  limpieza:{zonas:[],hecho:[],notas:""},
+  stocks:[],caducidades:[],almacenArreglado:[],
+  repuestoFuera:[],repuestoDentro:[],ordenadoAlmacen:[],bajadoCajas:[],
+  tarjetas:[],
+  gestionRecetas:[],
   responsable:"",equipoPresente:[],notaTraspaso:"",
   temperatura:null,
 })
@@ -584,8 +584,17 @@ export default function App(){
     const tardeHoy = todayPlanning?EQUIPO.filter(p=>todayPlanning[p]==="T"):[]
     const descansosHoy = todayPlanning?EQUIPO.filter(p=>todayPlanning[p]==="DSC"||todayPlanning[p]==="DSC*"):[]
     const vacasHoy = todayPlanning?EQUIPO.filter(p=>todayPlanning[p]==="VAC"):[]
+    const todayPedidos = [
+      ...(dayData.turnos?.manana?.pedidos||[]).map(p=>({...p,turno:"manana"})),
+      ...(dayData.turnos?.tarde?.pedidos||[]).map(p=>({...p,turno:"tarde"}))
+    ]
+    const colorEstadoPedido = {Recibido:"#fef3c7",Gestionado:"#dbeafe",Metido:"#d1fae5"}
+    const textEstadoPedido = {Recibido:"#92400e",Gestionado:"#1e40af",Metido:"#065f46"}
+
     return (
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+        {/* Turno selector */}
         <Card>
           <div style={{fontSize:13,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>Hoy</div>
           <div style={{fontSize:15,color:"#334155",fontWeight:700,marginBottom:14}}>{todayLabel()}</div>
@@ -593,74 +602,7 @@ export default function App(){
           <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
         </Card>
 
-        {/* Pedidos del día - vista rápida */}
-        {(()=>{
-          const todayPedidos = [...(dayData.turnos?.manana?.pedidos||[]).map(p=>({...p,turno:"manana"})), ...(dayData.turnos?.tarde?.pedidos||[]).map(p=>({...p,turno:"tarde"}))]
-          if(todayPedidos.length===0) return null
-          return (
-            <Card style={{borderLeft:"4px solid #6366f1"}}>
-              <SectionTitle icon="📦">Pedidos de hoy ({todayPedidos.length})</SectionTitle>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {todayPedidos.map((p,i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9"}}>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{p.proveedor}</div>
-                      {p.descripcion&&<div style={{fontSize:12,color:"#94a3b8",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.descripcion}</div>}
-                    </div>
-                    <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,marginLeft:8}}>
-                      <span style={{padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,background:{Recibido:"#fef3c7",Gestionado:"#dbeafe",Metido:"#d1fae5"}[p.estado]||"#f1f5f9",color:{Recibido:"#92400e",Gestionado:"#1e40af",Metido:"#065f46"}[p.estado]||"#64748b"}}>{p.estado}</span>
-                      {p.incidencia&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:10,background:"#fee2e2",color:"#dc2626",fontWeight:700}}>⚠️</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )
-        })()}
-
-                {/* Quién trabaja hoy */}
-        {todayPlanning&&(
-          <Card>
-            <SectionTitle icon="👥">Equipo de hoy</SectionTitle>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div style={{background:"#fffbeb",borderRadius:10,padding:"10px 12px",border:"1px solid #fde68a"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>☀️ Mañana</div>
-                {mananaHoy.map(p=><div key={p} style={{fontSize:13,color:"#78350f",fontWeight:500}}>{p}</div>)}
-              </div>
-              <div style={{background:"#eef2ff",borderRadius:10,padding:"10px 12px",border:"1px solid #c7d2fe"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#4338ca",marginBottom:6}}>🌙 Tarde</div>
-                {tardeHoy.map(p=><div key={p} style={{fontSize:13,color:"#3730a3",fontWeight:500}}>{p}</div>)}
-              </div>
-            </div>
-            {(descansosHoy.length>0||vacasHoy.length>0)&&(
-              <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
-                {descansosHoy.map(p=><Badge key={p} text={`😴 ${p}`} color="#94a3b8" />)}
-                {vacasHoy.map(p=><Badge key={p} text={`🏖️ ${p}`} color="#10b981" />)}
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* Anuncios */}
-        {anuncios.length>0&&(
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {anuncios.map(a=>(
-              <Card key={a.id} style={{borderLeft:`4px solid ${colorAnuncio[a.tipo]||"#6366f1"}`,background:colorAnuncio[a.tipo]+"11"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700,color:"#1e293b",fontSize:14}}>{iconAnuncio[a.tipo]} {a.titulo}</div>
-                    {a.texto&&<div style={{fontSize:13,color:"#64748b",marginTop:4}}>{a.texto}</div>}
-                    <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{a.fecha} · {a.autor}</div>
-                  </div>
-                  {isAdmin&&<button onClick={()=>deleteAnuncio(a.id)} style={{...deleteBtnStyle,flexShrink:0}}>✕</button>}
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {notaAnterior&&(<Card style={{borderLeft:"4px solid #f59e0b",background:"#fffbeb"}}><SectionTitle icon="📝">Nota del turno anterior</SectionTitle><div style={{fontSize:14,color:"#92400e"}}>{notaAnterior}</div></Card>)}
-
+        {/* 1. INCIDENCIAS ABIERTAS — siempre arriba si las hay */}
         {incidenciasAbiertas.length>0&&(
           <Card style={{borderLeft:"4px solid #ef4444",background:"#fef2f2"}}>
             <SectionTitle icon="🚨">Incidencias abiertas ({incidenciasAbiertas.length})</SectionTitle>
@@ -684,54 +626,25 @@ export default function App(){
           </Card>
         )}
 
-        {pendientes.length>0&&(
-          <Card style={{borderLeft:"4px solid #f59e0b",background:"#fffbeb"}}>
-            <SectionTitle icon="🔔">Pendientes ({pendientes.length})</SectionTitle>
-            {pendientes.slice(0,4).map((p,i)=>(<div key={i} style={{padding:"8px 12px",background:"#fff",borderRadius:10,marginBottom:8,fontSize:13}}><div style={{fontWeight:700,color:"#1e293b"}}>{p.tipo==="encargo"?"🧪 ":p.tipo==="vacuna"?"💉 ":"⚗️ "}{p.descripcion||p.vacuna||p.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{p.cliente&&<Badge text={p.cliente} color="#6366f1" />}{p.estado&&<Badge text={p.estado} color="#f59e0b" />}</div></div>))}
-            {pendientes.length>4&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:600}}>+{pendientes.length-4} más...</div>}
-          </Card>
+        {/* 2. TABLÓN DE ANUNCIOS */}
+        {anuncios.length>0&&(
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {anuncios.map(a=>(
+              <Card key={a.id} style={{borderLeft:`4px solid ${colorAnuncio[a.tipo]||"#6366f1"}`,background:colorAnuncio[a.tipo]+"11"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,color:"#1e293b",fontSize:14}}>{iconAnuncio[a.tipo]} {a.titulo}</div>
+                    {a.texto&&<div style={{fontSize:13,color:"#64748b",marginTop:4}}>{a.texto}</div>}
+                    <div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{a.fecha} · {a.autor}</div>
+                  </div>
+                  {isAdmin&&<button onClick={()=>deleteAnuncio(a.id)} style={{...deleteBtnStyle,flexShrink:0}}>✕</button>}
+                </div>
+              </Card>
+            ))}
+          </div>
         )}
 
-        <Card>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <div>
-              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>Responsable del turno</label>
-              <select value={turnoData.responsable} onChange={e=>updateTurno("responsable",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>
-                <option value="">Seleccionar...</option>
-                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <SectionTitle icon="📝">Nota de traspaso</SectionTitle>
-          <textarea value={turnoData.notaTraspaso||""} onChange={e=>updateTurno("notaTraspaso",e.target.value)} placeholder="Escribe aquí lo que debe saber el siguiente turno..." rows={3} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
-        </Card>
-
-        {/* Temperatura */}
-        <Card>
-          <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
-          <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            <input
-              type="number" step="0.1"
-              value={turnoData.temperatura||""}
-              onChange={e=>updateTurno("temperatura",e.target.value)}
-              placeholder="Ej: 4.5"
-              style={{...inputStyle,flex:1,boxSizing:"border-box"}}
-            />
-            <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
-            {turnoData.temperatura&&(
-              <Badge
-                text={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"}
-                color={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#10b981":"#ef4444"}
-              />
-            )}
-          </div>
-          <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
-        </Card>
-
-        {/* Productos recomendados de la semana */}
+        {/* 3. PRODUCTOS RECOMENDADOS DE LA SEMANA */}
         <Card style={{borderLeft:"4px solid #10b981",background:"#f0fdf4"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <SectionTitle icon="⭐">Recomendar esta semana</SectionTitle>
@@ -757,14 +670,98 @@ export default function App(){
           </div>
         </Card>
 
-                <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>{saving?"⏳ Guardando...":"💾 Guardar jornada"}</button>
+        {/* 4. PEDIDOS DEL DÍA */}
+        {todayPedidos.length>0&&(
+          <Card style={{borderLeft:"4px solid #6366f1"}}>
+            <SectionTitle icon="📦">Pedidos de hoy ({todayPedidos.length})</SectionTitle>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {todayPedidos.map((p,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{p.proveedor}</div>
+                    {p.descripcion&&<div style={{fontSize:12,color:"#94a3b8",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.descripcion}</div>}
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,marginLeft:8}}>
+                    <span style={{padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,background:colorEstadoPedido[p.estado]||"#f1f5f9",color:textEstadoPedido[p.estado]||"#64748b"}}>{p.estado}</span>
+                    {p.incidencia&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:10,background:"#fee2e2",color:"#dc2626",fontWeight:700}}>⚠️</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* 5. PENDIENTES DE DÍAS ANTERIORES */}
+        {pendientes.length>0&&(
+          <Card style={{borderLeft:"4px solid #f59e0b",background:"#fffbeb"}}>
+            <SectionTitle icon="🔔">Pendientes ({pendientes.length})</SectionTitle>
+            {pendientes.slice(0,4).map((p,i)=>(<div key={i} style={{padding:"8px 12px",background:"#fff",borderRadius:10,marginBottom:8,fontSize:13}}><div style={{fontWeight:700,color:"#1e293b"}}>{p.tipo==="encargo"?"🧪 ":p.tipo==="vacuna"?"💉 ":"⚗️ "}{p.descripcion||p.vacuna||p.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{p.cliente&&<Badge text={p.cliente} color="#6366f1" />}{p.estado&&<Badge text={p.estado} color="#f59e0b" />}</div></div>))}
+            {pendientes.length>4&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:600}}>+{pendientes.length-4} más...</div>}
+          </Card>
+        )}
+
+        {/* NOTA TURNO ANTERIOR */}
+        {notaAnterior&&(<Card style={{borderLeft:"4px solid #f59e0b",background:"#fffbeb"}}><SectionTitle icon="📝">Nota del turno anterior</SectionTitle><div style={{fontSize:14,color:"#92400e"}}>{notaAnterior}</div></Card>)}
+
+        {/* EQUIPO DE HOY */}
+        {todayPlanning&&(
+          <Card>
+            <SectionTitle icon="👥">Equipo de hoy</SectionTitle>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div style={{background:"#fffbeb",borderRadius:10,padding:"10px 12px",border:"1px solid #fde68a"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#92400e",marginBottom:6}}>☀️ Mañana</div>
+                {mananaHoy.map(p=><div key={p} style={{fontSize:13,color:"#78350f",fontWeight:500}}>{p}</div>)}
+              </div>
+              <div style={{background:"#eef2ff",borderRadius:10,padding:"10px 12px",border:"1px solid #c7d2fe"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#4338ca",marginBottom:6}}>🌙 Tarde</div>
+                {tardeHoy.map(p=><div key={p} style={{fontSize:13,color:"#3730a3",fontWeight:500}}>{p}</div>)}
+              </div>
+            </div>
+            {(descansosHoy.length>0||vacasHoy.length>0)&&(
+              <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+                {descansosHoy.map(p=><Badge key={p} text={`😴 ${p}`} color="#94a3b8" />)}
+                {vacasHoy.map(p=><Badge key={p} text={`🏖️ ${p}`} color="#10b981" />)}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* RESPONSABLE Y NOTA TRASPASO */}
+        <Card>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div>
+              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>Responsable del turno</label>
+              <select value={turnoData.responsable} onChange={e=>updateTurno("responsable",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>
+                <option value="">Seleccionar...</option>
+                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>Nota de traspaso</label>
+              <textarea value={turnoData.notaTraspaso||""} onChange={e=>updateTurno("notaTraspaso",e.target.value)} placeholder="Escribe aquí lo que debe saber el siguiente turno..." rows={3} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
+            </div>
+          </div>
+        </Card>
+
+        {/* TEMPERATURA */}
+        <Card>
+          <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="Ej: 4.5" style={{...inputStyle,flex:1,boxSizing:"border-box"}} />
+            <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
+            {turnoData.temperatura&&(<Badge text={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"} color={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#10b981":"#ef4444"} />)}
+          </div>
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
+        </Card>
+
+        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>{saving?"⏳ Guardando...":"💾 Guardar jornada"}</button>
         {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:15}}>{savedMsg}</div>}
         <button onClick={()=>{sessionStorage.removeItem("ff_role");setRole(null)}} style={{background:"none",border:"none",color:"#cbd5e1",fontSize:12,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>🔒 Bloquear app</button>
       </div>
     )
   }
 
-  // ── RENDER CALENDARIO ───────────────────────────────────────
+    // ── RENDER CALENDARIO ───────────────────────────────────────
   const renderCalendario = () => {
     const year = calViewDate.getFullYear()
     const month = calViewDate.getMonth()
@@ -900,55 +897,181 @@ export default function App(){
 
   // ── RENDER TAREAS ────────────────────────────────────────────
   const renderTareas = () => {
-    const tareasDone = [turnoData.stocks,turnoData.caducidades,turnoData.almacenArreglado,turnoData.repuestoFuera,turnoData.repuestoDentro,turnoData.ordenadoAlmacen,turnoData.bajadoCajas,turnoData.limpieza?.hecho,turnoData.tarjetas,turnoData.gestionRecetas].filter(Boolean).length
-    const pct = Math.round((tareasDone/10)*100)
+    // Helper: toggle a person in a task array
+    const togglePersonTask = (taskKey, persona) => {
+      const current = turnoData[taskKey]||[]
+      const updated = current.includes(persona)
+        ? current.filter(p=>p!==persona)
+        : [...current, persona]
+      updateTurno(taskKey, updated)
+    }
+    const toggleLimpiezaHecho = (persona) => {
+      const current = turnoData.limpieza?.hecho||[]
+      const updated = current.includes(persona)
+        ? current.filter(p=>p!==persona)
+        : [...current, persona]
+      updateTurno("limpieza", {...turnoData.limpieza, hecho:updated})
+    }
+
+    // Count done tasks (at least 1 person)
+    const tareaKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
+    const tareasDone = [
+      ...(turnoData.limpieza?.hecho||[]).length>0?[1]:[],
+      ...tareaKeys.filter(k=>(turnoData[k]||[]).length>0).map(()=>1)
+    ].length
+    const totalTareas = 10
+    const pct = Math.round((tareasDone/totalTareas)*100)
+
+    // Multi-person task component
+    const TaskPersonas = ({taskKey, onToggle}) => {
+      const done = taskKey==="limpiezaHecho"
+        ? (turnoData.limpieza?.hecho||[])
+        : (turnoData[taskKey]||[])
+      const toggle = onToggle || ((p)=>togglePersonTask(taskKey,p))
+      return (
+        <div style={{marginTop:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6}}>
+            {done.length>0
+              ? <span style={{color:"#10b981"}}>✓ {done.join(", ")}</span>
+              : <span style={{color:"#94a3b8"}}>¿Quién lo ha hecho?</span>
+            }
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {EQUIPO.map(p=>(
+              <button key={p} onClick={()=>toggle(p)} style={{
+                padding:"4px 10px",borderRadius:20,fontSize:12,fontWeight:600,
+                cursor:"pointer",fontFamily:"inherit",border:"none",
+                background:done.includes(p)?"#6366f1":"#f1f5f9",
+                color:done.includes(p)?"#fff":"#64748b",
+                transition:"all 0.15s"
+              }}>{p}</button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    const TaskCard = ({icon, title, taskKey, children}) => {
+      const done = taskKey==="limpiezaHecho"
+        ? (turnoData.limpieza?.hecho||[])
+        : (turnoData[taskKey]||[])
+      const isDone = done.length>0
+      return (
+        <div style={{padding:"12px 16px",background:isDone?"#f0fdf4":"#fff",borderRadius:12,border:`2px solid ${isDone?"#10b981":"#e2e8f0"}`,transition:"all 0.2s"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:isDone||children?8:0}}>
+            <div style={{width:32,height:32,borderRadius:10,background:isDone?"#10b981":"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,transition:"all 0.2s"}}>{isDone?"✅":icon}</div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:700,fontSize:14,color:isDone?"#065f46":"#1e293b"}}>{title}</div>
+              {isDone&&<div style={{fontSize:11,color:"#10b981",fontWeight:600,marginTop:1}}>{done.join(" · ")}</div>}
+            </div>
+          </div>
+          {children}
+        </div>
+      )
+    }
+
     return (
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>✅ Tareas del día</h2>
         <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
-        <Card><SectionTitle icon="📊">Progreso</SectionTitle><div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:"#64748b",fontSize:14}}>{tareasDone} de 8</span><span style={{color:"#6366f1",fontWeight:700,fontSize:14}}>{pct}%</span></div><div style={{background:"#e2e8f0",borderRadius:20,height:12,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#10b981)",borderRadius:20,transition:"width 0.4s"}} /></div></Card>
-        <Card><SectionTitle icon="🧹">Limpieza</SectionTitle><CheckBox label="Se ha limpiado" checked={turnoData.limpieza?.hecho||false} onChange={v=>updateTurno("limpieza",{...turnoData.limpieza,hecho:v})} />{turnoData.limpieza?.hecho&&(<div style={{marginTop:12}}><div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>{ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}</div><textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={3} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} /></div>)}</Card>
-        <Card><SectionTitle icon="📦">Almacén y stock</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><CheckBox label="Repuesto desde fuera" checked={turnoData.repuestoFuera||false} onChange={v=>updateTurno("repuestoFuera",v)} /><CheckBox label="Repuesto desde dentro" checked={turnoData.repuestoDentro||false} onChange={v=>updateTurno("repuestoDentro",v)} /><CheckBox label="Almacén arreglado" checked={turnoData.almacenArreglado||false} onChange={v=>updateTurno("almacenArreglado",v)} /><CheckBox label="Ordenado el almacén" checked={turnoData.ordenadoAlmacen||false} onChange={v=>updateTurno("ordenadoAlmacen",v)} /><CheckBox label="Bajado cajas" checked={turnoData.bajadoCajas||false} onChange={v=>updateTurno("bajadoCajas",v)} /></div></Card>
+
+        {/* Progreso */}
         <Card>
-          <SectionTitle icon="📋">Control y revisión</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <CheckBox label="Control de stocks" checked={turnoData.stocks||false} onChange={v=>updateTurno("stocks",v)} />
-            <CheckBox label="Revisión de caducidades" checked={turnoData.caducidades||false} onChange={v=>updateTurno("caducidades",v)} />
-            <CheckBox label="Comprobar tarjetas" checked={turnoData.tarjetas||false} onChange={v=>updateTurno("tarjetas",v)} />
+          <SectionTitle icon="📊">Progreso del turno</SectionTitle>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+            <span style={{color:"#64748b",fontSize:14}}>{tareasDone} de {totalTareas} completadas</span>
+            <span style={{color:"#6366f1",fontWeight:700,fontSize:14}}>{pct}%</span>
+          </div>
+          <div style={{background:"#e2e8f0",borderRadius:20,height:12,overflow:"hidden"}}>
+            <div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#10b981)",borderRadius:20,transition:"width 0.4s"}} />
           </div>
         </Card>
+
+        {/* Limpieza */}
+        <Card>
+          <SectionTitle icon="🧹">Limpieza</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <TaskCard icon="🧹" title="Se ha limpiado" taskKey="limpiezaHecho">
+              <TaskPersonas taskKey="limpiezaHecho" onToggle={toggleLimpiezaHecho} />
+            </TaskCard>
+            {(turnoData.limpieza?.hecho||[]).length>0&&(
+              <div style={{paddingLeft:8}}>
+                <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+                  {ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}
+                </div>
+                <textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Almacén y stock */}
+        <Card>
+          <SectionTitle icon="📦">Almacén y stock</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {[
+              {key:"repuestoFuera",icon:"📤",label:"Repuesto desde fuera"},
+              {key:"repuestoDentro",icon:"📥",label:"Repuesto desde dentro"},
+              {key:"almacenArreglado",icon:"🗄️",label:"Almacén arreglado"},
+              {key:"ordenadoAlmacen",icon:"📋",label:"Ordenado el almacén"},
+              {key:"bajadoCajas",icon:"📦",label:"Bajado cajas"},
+            ].map(({key,icon,label})=>(
+              <TaskCard key={key} icon={icon} title={label} taskKey={key}>
+                <TaskPersonas taskKey={key} />
+              </TaskCard>
+            ))}
+          </div>
+        </Card>
+
+        {/* Control y revisión */}
+        <Card>
+          <SectionTitle icon="📋">Control y revisión</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {[
+              {key:"stocks",icon:"🔢",label:"Control de stocks"},
+              {key:"caducidades",icon:"📅",label:"Revisión de caducidades"},
+              {key:"tarjetas",icon:"💳",label:"Comprobar tarjetas"},
+            ].map(({key,icon,label})=>(
+              <TaskCard key={key} icon={icon} title={label} taskKey={key}>
+                <TaskPersonas taskKey={key} />
+              </TaskCard>
+            ))}
+          </div>
+        </Card>
+
+        {/* Gestión de recetas */}
         <Card>
           <SectionTitle icon="📄">Gestión de recetas</SectionTitle>
-          <CheckBox label="Gestión de recetas realizada" checked={turnoData.gestionRecetas||false} onChange={v=>updateTurno("gestionRecetas",v)} />
-          {turnoData.gestionRecetas&&(
-            <div style={{marginTop:10}}>
-              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>¿Quién lo ha gestionado?</label>
-              <select value={turnoData.gestionRecetasQuien||""} onChange={e=>updateTurno("gestionRecetasQuien",e.target.value)} style={{padding:"10px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:14,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box"}}>
-                <option value="">Seleccionar persona...</option>
-                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          )}
+          <TaskCard icon="📄" title="Gestión de recetas realizada" taskKey="gestionRecetas">
+            <TaskPersonas taskKey="gestionRecetas" />
+          </TaskCard>
         </Card>
+
+        {/* Temperatura */}
         <Card>
           <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
-          <CheckBox label="Temperatura registrada" checked={!!(turnoData.temperatura)} onChange={v=>{ if(!v) updateTurno("temperatura",null) }} />
-          {(turnoData.temperatura!==null&&turnoData.temperatura!==undefined||true)&&(
-            <div style={{marginTop:10,display:"flex",gap:10,alignItems:"center"}}>
-              <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="Ej: 4.5" style={{padding:"10px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:14,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",flex:1,boxSizing:"border-box"}} />
-              <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
-              {turnoData.temperatura&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20,background:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#d1fae5":"#fee2e2",color:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#065f46":"#dc2626"}}>{parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"}</span>}
-            </div>
-          )}
+          <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="Ej: 4.5" style={{...inputStyle,flex:1,boxSizing:"border-box"}} />
+            <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
+            {turnoData.temperatura&&(
+              <span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:20,background:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#d1fae5":"#fee2e2",color:parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#065f46":"#dc2626"}}>
+                {parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"}
+              </span>
+            )}
+          </div>
           <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
         </Card>
-        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>{saving?"⏳ Guardando...":"💾 Guardar turno"}</button>
+
+        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>
+          {saving?"⏳ Guardando...":"💾 Guardar turno"}
+        </button>
         {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
       </div>
     )
   }
 
-  // ── RENDER CHAT ──────────────────────────────────────────────
+    // ── RENDER CHAT ──────────────────────────────────────────────
   const renderChat = () => (
     <div style={{display:"flex",flexDirection:"column",height:"70vh"}}>
       <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b",marginBottom:12}}>💬 Chat del equipo</h2>
@@ -993,7 +1116,7 @@ export default function App(){
     if(selectedDay){
       const d=selectedDay
       const td=d.turnos?.[selectedDayTurno]||emptyTurno()
-      const tareasDone=[td.stocks,td.caducidades,td.almacenArreglado,td.repuestoFuera,td.repuestoDentro,td.ordenadoAlmacen,td.bajadoCajas,td.limpieza?.hecho].filter(Boolean).length
+      const tareasDone=[(td.stocks||[]).length>0,(td.caducidades||[]).length>0,(td.almacenArreglado||[]).length>0,(td.repuestoFuera||[]).length>0,(td.repuestoDentro||[]).length>0,(td.ordenadoAlmacen||[]).length>0,(td.bajadoCajas||[]).length>0,(td.limpieza?.hecho||[]).length>0,(td.tarjetas||[]).length>0,(td.gestionRecetas||[]).length>0].filter(Boolean).length
       return (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>setSelectedDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button><h2 style={{fontSize:14,fontWeight:800,color:"#1e293b",flex:1}}>{d.fecha}</h2><button onClick={()=>setEditingHistorialDay({...d})} style={{background:"#eff6ff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#3b82f6"}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>deleteDay(d.fechaKey)} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#ef4444"}}>🗑</button>}</div>
@@ -1009,7 +1132,24 @@ export default function App(){
               {(td.formulasMagistrales||[]).map((f,i)=>(<div key={i} style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>⚗️ {f.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{f.cliente&&<Badge text={`👤 ${f.cliente}`} color="#10b981" />}{f.laboratorio&&<Badge text={`🏥 ${f.laboratorio}`} color="#6366f1" />}{f.estado&&<Badge text={f.estado} color="#f59e0b" />}</div></div>))}
             </Card>
           )}
-                    <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[{label:"Limpieza",done:td.limpieza?.hecho},{label:"Repuesto fuera",done:td.repuestoFuera},{label:"Repuesto dentro",done:td.repuestoDentro},{label:"Almacén arreglado",done:td.almacenArreglado},{label:"Ordenado almacén",done:td.ordenadoAlmacen},{label:"Bajado cajas",done:td.bajadoCajas},{label:"Control stocks",done:td.stocks},{label:"Caducidades",done:td.caducidades}].map(({label,done})=>(<div key={label} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done?"#065f46":"#94a3b8"}}><span>{done?"✅":"⬜"}</span>{label}</div>))}</div></Card>
+                    <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[
+  {label:"Limpieza",done:(td.limpieza?.hecho||[])},
+  {label:"Repuesto fuera",done:(td.repuestoFuera||[])},
+  {label:"Repuesto dentro",done:(td.repuestoDentro||[])},
+  {label:"Almacén arreglado",done:(td.almacenArreglado||[])},
+  {label:"Ordenado almacén",done:(td.ordenadoAlmacen||[])},
+  {label:"Bajado cajas",done:(td.bajadoCajas||[])},
+  {label:"Control stocks",done:(td.stocks||[])},
+  {label:"Caducidades",done:(td.caducidades||[])},
+  {label:"Tarjetas",done:(td.tarjetas||[])},
+  {label:"Gestión recetas",done:(td.gestionRecetas||[])},
+].map(({label,done})=>(<div key={label} style={{marginBottom:4}}>
+  <div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done.length>0?"#065f46":"#94a3b8"}}>
+    <span>{done.length>0?"✅":"⬜"}</span>
+    <span style={{fontWeight:done.length>0?600:400}}>{label}</span>
+  </div>
+  {done.length>0&&<div style={{fontSize:11,color:"#10b981",marginLeft:26}}>{done.join(" · ")}</div>}
+</div>))}</div></Card>
         </div>
       )
     }
@@ -1099,7 +1239,7 @@ export default function App(){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             {["manana","tarde"].map(t=>{
               const td=dayData.turnos?.[t]||emptyTurno()
-              const tareas=[td.stocks,td.caducidades,td.almacenArreglado,td.repuestoFuera,td.repuestoDentro,td.ordenadoAlmacen,td.bajadoCajas,td.limpieza?.hecho].filter(Boolean).length
+              const tareas=[(td.stocks||[]).length>0,(td.caducidades||[]).length>0,(td.almacenArreglado||[]).length>0,(td.repuestoFuera||[]).length>0,(td.repuestoDentro||[]).length>0,(td.ordenadoAlmacen||[]).length>0,(td.bajadoCajas||[]).length>0,(td.limpieza?.hecho||[]).length>0,(td.tarjetas||[]).length>0,(td.gestionRecetas||[]).length>0].filter(Boolean).length
               return(
                 <div key={t} style={{background:t==="manana"?"#fffbeb":"#eef2ff",borderRadius:12,padding:14,border:`1px solid ${t==="manana"?"#fde68a":"#c7d2fe"}`}}>
                   <div style={{fontWeight:700,color:t==="manana"?"#92400e":"#4338ca",fontSize:13,marginBottom:8}}>{t==="manana"?"☀️ Mañana":"🌙 Tarde"}</div>
@@ -1175,8 +1315,22 @@ export default function App(){
                         <div style={{fontSize:12,color:"#6366f1",fontWeight:600,marginBottom:4}}>{d.fecha}</div>
                         {dp.map((p,i)=>(
                           <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 10px",background:"#fff",borderRadius:8,marginBottom:3,border:"1px solid #f1f5f9"}}>
-                            <span style={{fontSize:12,color:"#1e293b",fontWeight:500}}>{p.proveedor}</span>
-                            <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:700,background:{Recibido:"#fef3c7",Gestionado:"#dbeafe",Metido:"#d1fae5"}[p.estado]||"#f1f5f9",color:{Recibido:"#92400e",Gestionado:"#1e40af",Metido:"#065f46"}[p.estado]||"#64748b"}}>{p.estado}</span>
+                            <span style={{fontSize:12,color:"#1e293b",fontWeight:500,flex:1}}>{p.proveedor}</span>
+                            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                              <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:700,background:{Recibido:"#fef3c7",Gestionado:"#dbeafe",Metido:"#d1fae5"}[p.estado]||"#f1f5f9",color:{Recibido:"#92400e",Gestionado:"#1e40af",Metido:"#065f46"}[p.estado]||"#64748b"}}>{p.estado}</span>
+                              <select value={p.estado||""} onChange={async(e)=>{
+                                const newEstado=e.target.value
+                                const updatedHist=historial.map(hd=>{
+                                  if(hd.fechaKey!==d.fechaKey) return hd
+                                  const updateTurnoPedidos=(t)=>({...hd.turnos[t],pedidos:(hd.turnos[t]?.pedidos||[]).map(hp=>hp.id===p.id?{...hp,estado:newEstado}:hp)})
+                                  return {...hd,turnos:{...hd.turnos,manana:updateTurnoPedidos("manana"),tarde:updateTurnoPedidos("tarde")}}
+                                })
+                                const updatedDay=updatedHist.find(hd=>hd.fechaKey===d.fechaKey)
+                                if(updatedDay) await setDoc(doc(db,"jornadas",d.fechaKey),updatedDay)
+                              }} style={{padding:"2px 6px",borderRadius:8,border:"1px solid #c7d2fe",fontSize:11,fontWeight:600,color:"#6366f1",background:"#eef2ff",cursor:"pointer",fontFamily:"inherit"}}>
+                                {["Recibido","Gestionado","Metido"].map(s=><option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
                           </div>
                         ))}
                       </div>
