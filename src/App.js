@@ -236,6 +236,8 @@ const emptyTurno = () => ({
   limpieza:{zonas:[],hecho:false,notas:""},
   stocks:false,caducidades:false,almacenArreglado:false,
   repuestoFuera:false,repuestoDentro:false,ordenadoAlmacen:false,bajadoCajas:false,
+  tarjetas:false,
+  gestionRecetas:false,gestionRecetasQuien:"",
   responsable:"",equipoPresente:[],notaTraspaso:"",
   temperatura:null,
 })
@@ -362,6 +364,9 @@ export default function App(){
   const [newAnuncio,setNewAnuncio] = useState({titulo:"",texto:"",tipo:"info"})
   const [calViewDate,setCalViewDate] = useState(new Date())
   const [calPerson,setCalPerson] = useState("Antonio")
+  const [productosRecomendados, setProductosRecomendados] = useState([])
+  const [showProductoForm, setShowProductoForm] = useState(false)
+  const [newProducto, setNewProducto] = useState("")
   const [marcaPersona,  setMarcaPersona]  = useState(EQUIPO[0])
   const [marcaNombre,   setMarcaNombre]   = useState("")
   const [marcaHistorial,setMarcaHistorial]= useState([])
@@ -404,6 +409,32 @@ export default function App(){
     const unsub = onSnapshot(q,(snap)=>{setAnuncios(snap.docs.map(d=>({id:d.id,...d.data()})))})
     return ()=>unsub()
   },[role])
+
+  useEffect(()=>{
+    if(!role) return
+    const unsub = onSnapshot(doc(db,"recomendados","semana"),snap=>{
+      if(snap.exists()) setProductosRecomendados(snap.data().productos||[])
+    })
+    return ()=>unsub()
+  },[role])
+
+  const addProductoRecomendado = async() => {
+    if(!newProducto.trim()) return
+    const updated = [...productosRecomendados,{id:Date.now(),nombre:newProducto.trim(),activo:true}]
+    await setDoc(doc(db,"recomendados","semana"),{productos:updated,updatedAt:new Date().toISOString()})
+    setNewProducto("")
+    setShowProductoForm(false)
+  }
+
+  const toggleProductoActivo = async(id) => {
+    const updated = productosRecomendados.map(p=>p.id===id?{...p,activo:!p.activo}:p)
+    await setDoc(doc(db,"recomendados","semana"),{productos:updated,updatedAt:new Date().toISOString()})
+  }
+
+  const deleteProductoRecomendado = async(id) => {
+    const updated = productosRecomendados.filter(p=>p.id!==id)
+    await setDoc(doc(db,"recomendados","semana"),{productos:updated,updatedAt:new Date().toISOString()})
+  }
 
   if(!role) return <PinScreen onUnlock={handleUnlock} />
 
@@ -562,7 +593,32 @@ export default function App(){
           <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
         </Card>
 
-        {/* Quién trabaja hoy */}
+        {/* Pedidos del día - vista rápida */}
+        {(()=>{
+          const todayPedidos = [...(dayData.turnos?.manana?.pedidos||[]).map(p=>({...p,turno:"manana"})), ...(dayData.turnos?.tarde?.pedidos||[]).map(p=>({...p,turno:"tarde"}))]
+          if(todayPedidos.length===0) return null
+          return (
+            <Card style={{borderLeft:"4px solid #6366f1"}}>
+              <SectionTitle icon="📦">Pedidos de hoy ({todayPedidos.length})</SectionTitle>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {todayPedidos.map((p,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{p.proveedor}</div>
+                      {p.descripcion&&<div style={{fontSize:12,color:"#94a3b8",marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.descripcion}</div>}
+                    </div>
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,marginLeft:8}}>
+                      <span style={{padding:"3px 10px",borderRadius:20,fontSize:12,fontWeight:700,background:{Recibido:"#fef3c7",Gestionado:"#dbeafe",Metido:"#d1fae5"}[p.estado]||"#f1f5f9",color:{Recibido:"#92400e",Gestionado:"#1e40af",Metido:"#065f46"}[p.estado]||"#64748b"}}>{p.estado}</span>
+                      {p.incidencia&&<span style={{fontSize:11,padding:"2px 6px",borderRadius:10,background:"#fee2e2",color:"#dc2626",fontWeight:700}}>⚠️</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )
+        })()}
+
+                {/* Quién trabaja hoy */}
         {todayPlanning&&(
           <Card>
             <SectionTitle icon="👥">Equipo de hoy</SectionTitle>
@@ -675,7 +731,33 @@ export default function App(){
           <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
         </Card>
 
-        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>{saving?"⏳ Guardando...":"💾 Guardar jornada"}</button>
+        {/* Productos recomendados de la semana */}
+        <Card style={{borderLeft:"4px solid #10b981",background:"#f0fdf4"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <SectionTitle icon="⭐">Recomendar esta semana</SectionTitle>
+            {isAdmin&&<button onClick={()=>setShowProductoForm(!showProductoForm)} style={{...addBtnStyle,fontSize:12,padding:"6px 12px"}}>+ Añadir</button>}
+          </div>
+          {isAdmin&&showProductoForm&&(
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <input value={newProducto} onChange={e=>setNewProducto(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addProductoRecomendado()} placeholder="Nombre del producto..." style={{...inputStyle,flex:1,boxSizing:"border-box"}} />
+              <button onClick={addProductoRecomendado} style={{...addBtnStyle,padding:"10px 14px"}}>✓</button>
+            </div>
+          )}
+          {productosRecomendados.length===0&&<div style={{fontSize:13,color:"#94a3b8",textAlign:"center",padding:"10px 0"}}>Sin productos recomendados esta semana</div>}
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {productosRecomendados.map(p=>(
+              <div key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:p.activo?"#fff":"#f1f5f9",borderRadius:10,border:`1px solid ${p.activo?"#bbf7d0":"#e2e8f0"}`,opacity:p.activo?1:0.6}}>
+                <button onClick={()=>toggleProductoActivo(p.id)} style={{width:22,height:22,borderRadius:6,border:"none",background:p.activo?"#10b981":"#e2e8f0",color:"#fff",cursor:"pointer",fontSize:12,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {p.activo?"✓":"○"}
+                </button>
+                <span style={{flex:1,fontSize:14,fontWeight:p.activo?600:400,color:p.activo?"#065f46":"#94a3b8",textDecoration:p.activo?"none":"line-through"}}>{p.nombre}</span>
+                {isAdmin&&<button onClick={()=>deleteProductoRecomendado(p.id)} style={{...deleteBtnStyle,width:22,height:22}}>✕</button>}
+              </div>
+            ))}
+          </div>
+        </Card>
+
+                <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>{saving?"⏳ Guardando...":"💾 Guardar jornada"}</button>
         {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:15}}>{savedMsg}</div>}
         <button onClick={()=>{sessionStorage.removeItem("ff_role");setRole(null)}} style={{background:"none",border:"none",color:"#cbd5e1",fontSize:12,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>🔒 Bloquear app</button>
       </div>
@@ -818,8 +900,8 @@ export default function App(){
 
   // ── RENDER TAREAS ────────────────────────────────────────────
   const renderTareas = () => {
-    const tareasDone = [turnoData.stocks,turnoData.caducidades,turnoData.almacenArreglado,turnoData.repuestoFuera,turnoData.repuestoDentro,turnoData.ordenadoAlmacen,turnoData.bajadoCajas,turnoData.limpieza?.hecho].filter(Boolean).length
-    const pct = Math.round((tareasDone/8)*100)
+    const tareasDone = [turnoData.stocks,turnoData.caducidades,turnoData.almacenArreglado,turnoData.repuestoFuera,turnoData.repuestoDentro,turnoData.ordenadoAlmacen,turnoData.bajadoCajas,turnoData.limpieza?.hecho,turnoData.tarjetas,turnoData.gestionRecetas].filter(Boolean).length
+    const pct = Math.round((tareasDone/10)*100)
     return (
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
         <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>✅ Tareas del día</h2>
@@ -827,7 +909,27 @@ export default function App(){
         <Card><SectionTitle icon="📊">Progreso</SectionTitle><div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:"#64748b",fontSize:14}}>{tareasDone} de 8</span><span style={{color:"#6366f1",fontWeight:700,fontSize:14}}>{pct}%</span></div><div style={{background:"#e2e8f0",borderRadius:20,height:12,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#10b981)",borderRadius:20,transition:"width 0.4s"}} /></div></Card>
         <Card><SectionTitle icon="🧹">Limpieza</SectionTitle><CheckBox label="Se ha limpiado" checked={turnoData.limpieza?.hecho||false} onChange={v=>updateTurno("limpieza",{...turnoData.limpieza,hecho:v})} />{turnoData.limpieza?.hecho&&(<div style={{marginTop:12}}><div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>{ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}</div><textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={3} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} /></div>)}</Card>
         <Card><SectionTitle icon="📦">Almacén y stock</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><CheckBox label="Repuesto desde fuera" checked={turnoData.repuestoFuera||false} onChange={v=>updateTurno("repuestoFuera",v)} /><CheckBox label="Repuesto desde dentro" checked={turnoData.repuestoDentro||false} onChange={v=>updateTurno("repuestoDentro",v)} /><CheckBox label="Almacén arreglado" checked={turnoData.almacenArreglado||false} onChange={v=>updateTurno("almacenArreglado",v)} /><CheckBox label="Ordenado el almacén" checked={turnoData.ordenadoAlmacen||false} onChange={v=>updateTurno("ordenadoAlmacen",v)} /><CheckBox label="Bajado cajas" checked={turnoData.bajadoCajas||false} onChange={v=>updateTurno("bajadoCajas",v)} /></div></Card>
-        <Card><SectionTitle icon="📋">Control y revisión</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><CheckBox label="Control de stocks" checked={turnoData.stocks||false} onChange={v=>updateTurno("stocks",v)} /><CheckBox label="Revisión de caducidades" checked={turnoData.caducidades||false} onChange={v=>updateTurno("caducidades",v)} /></div></Card>
+        <Card>
+          <SectionTitle icon="📋">Control y revisión</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <CheckBox label="Control de stocks" checked={turnoData.stocks||false} onChange={v=>updateTurno("stocks",v)} />
+            <CheckBox label="Revisión de caducidades" checked={turnoData.caducidades||false} onChange={v=>updateTurno("caducidades",v)} />
+            <CheckBox label="Comprobar tarjetas" checked={turnoData.tarjetas||false} onChange={v=>updateTurno("tarjetas",v)} />
+          </div>
+        </Card>
+        <Card>
+          <SectionTitle icon="📄">Gestión de recetas</SectionTitle>
+          <CheckBox label="Gestión de recetas realizada" checked={turnoData.gestionRecetas||false} onChange={v=>updateTurno("gestionRecetas",v)} />
+          {turnoData.gestionRecetas&&(
+            <div style={{marginTop:10}}>
+              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>¿Quién lo ha gestionado?</label>
+              <select value={turnoData.gestionRecetasQuien||""} onChange={e=>updateTurno("gestionRecetasQuien",e.target.value)} style={{padding:"10px 12px",border:"2px solid #e2e8f0",borderRadius:10,fontSize:14,fontFamily:"inherit",color:"#1e293b",background:"#f8fafc",outline:"none",width:"100%",boxSizing:"border-box"}}>
+                <option value="">Seleccionar persona...</option>
+                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          )}
+        </Card>
         <Card>
           <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
           <CheckBox label="Temperatura registrada" checked={!!(turnoData.temperatura)} onChange={v=>{ if(!v) updateTurno("temperatura",null) }} />
@@ -896,7 +998,7 @@ export default function App(){
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>setSelectedDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button><h2 style={{fontSize:14,fontWeight:800,color:"#1e293b",flex:1}}>{d.fecha}</h2><button onClick={()=>setEditingHistorialDay({...d})} style={{background:"#eff6ff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#3b82f6"}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>deleteDay(d.fechaKey)} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#ef4444"}}>🗑</button>}</div>
           <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
-          <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/8`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
+          <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/10`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
           {(td.pedidos||[]).length>0&&<Card><SectionTitle icon="📦">Pedidos</SectionTitle>{td.pedidos.map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:8}}><div style={{fontWeight:700,fontSize:14}}>{p.proveedor}</div>{p.descripcion&&<div style={{fontSize:13,color:"#64748b"}}>{p.descripcion}</div>}<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}><Badge text={p.estado} color={colorEstado[p.estado]||"#6366f1"} /></div></div>))}</Card>}
           {(td.incidencias||[]).length>0&&<Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{td.incidencias.map((inc,i)=>(<div key={i} style={{padding:"10px 14px",background:inc.resuelta?"#f0fdf4":"#fffbeb",borderRadius:10,marginBottom:8,borderLeft:`3px solid ${inc.resuelta?"#10b981":"#f59e0b"}`}}><div style={{fontWeight:700,color:inc.resuelta?"#065f46":"#92400e",fontSize:14}}>{inc.tipo}{inc.resuelta?" ✓":""}</div><div style={{fontSize:13,color:"#64748b"}}>{inc.descripcion}</div>{inc.responsable&&<div style={{marginTop:4}}><Badge text={inc.responsable} color="#8b5cf6" /></div>}</div>))}</Card>}
           {((td.encargos||[]).length+(td.vacunas||[]).length+(td.formulasMagistrales||[]).length)>0&&(
@@ -1005,7 +1107,7 @@ export default function App(){
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     <div style={{fontSize:12,color:"#3b82f6"}}>📦 {(td.pedidos||[]).length} pedidos</div>
                     <div style={{fontSize:12,color:"#f59e0b"}}>⚠️ {(td.incidencias||[]).length} incidencias</div>
-                    <div style={{fontSize:12,color:"#10b981"}}>✅ {tareas}/8 tareas</div>
+                    <div style={{fontSize:12,color:"#10b981"}}>✅ {tareas}/10 tareas</div>
                     {td.temperatura&&<div style={{fontSize:12,color:parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"}}>🌡️ {td.temperatura}°C</div>}
                   </div>
                 </div>
@@ -1030,6 +1132,62 @@ export default function App(){
         )}
 
         {/* Actividad semana */}
+        {/* Pedidos y proveedores de la semana */}
+        <Card>
+          <SectionTitle icon="📦">Pedidos de la semana</SectionTitle>
+          {(()=>{
+            const allPedidos = last7.flatMap(d=>[
+              ...(d.turnos?.manana?.pedidos||[]).map(p=>({...p,fecha:d.fecha,fechaKey:d.fechaKey})),
+              ...(d.turnos?.tarde?.pedidos||[]).map(p=>({...p,fecha:d.fecha,fechaKey:d.fechaKey}))
+            ])
+            if(allPedidos.length===0) return <div style={{fontSize:13,color:"#94a3b8",textAlign:"center",padding:"10px 0"}}>Sin pedidos esta semana</div>
+            // Group by proveedor
+            const byProv = {}
+            allPedidos.forEach(p=>{
+              if(!byProv[p.proveedor]) byProv[p.proveedor]={total:0,metidos:0,incidencias:0}
+              byProv[p.proveedor].total++
+              if(p.estado==="Metido") byProv[p.proveedor].metidos++
+              if(p.incidencia) byProv[p.proveedor].incidencias++
+            })
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{display:"flex",gap:8,marginBottom:4}}>
+                  <Badge text={`${allPedidos.length} pedidos`} color="#6366f1" />
+                  <Badge text={`${Object.keys(byProv).length} proveedores`} color="#8b5cf6" />
+                  <Badge text={`${allPedidos.filter(p=>p.incidencia).length} incid.`} color="#ef4444" />
+                </div>
+                {Object.entries(byProv).map(([prov,stats])=>(
+                  <div key={prov} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9"}}>
+                    <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{prov}</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <Badge text={`${stats.total} pedidos`} color="#3b82f6" />
+                      <Badge text={`${stats.metidos} metidos`} color="#10b981" />
+                      {stats.incidencias>0&&<Badge text={`⚠️ ${stats.incidencias}`} color="#ef4444" />}
+                    </div>
+                  </div>
+                ))}
+                <div style={{marginTop:8}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6}}>Detalle por día:</div>
+                  {last7.filter(d=>(d.turnos?.manana?.pedidos||[]).length+(d.turnos?.tarde?.pedidos||[]).length>0).map(d=>{
+                    const dp=[...(d.turnos?.manana?.pedidos||[]),...(d.turnos?.tarde?.pedidos||[])]
+                    return(
+                      <div key={d.fechaKey} style={{marginBottom:8}}>
+                        <div style={{fontSize:12,color:"#6366f1",fontWeight:600,marginBottom:4}}>{d.fecha}</div>
+                        {dp.map((p,i)=>(
+                          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 10px",background:"#fff",borderRadius:8,marginBottom:3,border:"1px solid #f1f5f9"}}>
+                            <span style={{fontSize:12,color:"#1e293b",fontWeight:500}}>{p.proveedor}</span>
+                            <span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:700,background:{Recibido:"#fef3c7",Gestionado:"#dbeafe",Metido:"#d1fae5"}[p.estado]||"#f1f5f9",color:{Recibido:"#92400e",Gestionado:"#1e40af",Metido:"#065f46"}[p.estado]||"#64748b"}}>{p.estado}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+        </Card>
+
         <Card>
           <SectionTitle icon="📅">Últimos 7 días</SectionTitle>
           {last7.map(day=>{
