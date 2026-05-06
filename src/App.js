@@ -1171,10 +1171,10 @@ export default function App(){
 
         {/* Resumen rápido */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {renderStatCard("⚠️" value={incTotal} label="Incidencias" sub={`${incResueltas} resueltas`} color="#f59e0b" />
-          {renderStatCard("📦" value={pedTotal} label="Pedidos" sub={`${pedConIncidencia} con incid.`} color="#6366f1" />
-          {renderStatCard("✅" value={topPersonas[0]?.[0]||"—"} label="Más activa" sub={topPersonas[0]?`${topPersonas[0][1]} tareas`:"Sin datos"} color="#10b981" />
-          {renderStatCard("🌡️" value={tempFueraRango.length} label="Temp. fuera rango" sub="últimos 30 días" color={tempFueraRango.length>0?"#ef4444":"#10b981"} />
+          {renderStatCard("⚠️",incTotal,"Incidencias",`${incResueltas} resueltas`,"#f59e0b")}
+          {renderStatCard("📦",pedTotal,"Pedidos",`${pedConIncidencia} con incid.`,"#6366f1")}
+          {renderStatCard("✅",topPersonas[0]?.[0]||"—","Más activa",topPersonas[0]?`${topPersonas[0][1]} tareas`:"Sin datos","#10b981")}
+          {renderStatCard("🌡️",tempFueraRango.length,"Temp. fuera rango","últimos 30 días",tempFueraRango.length>0?"#ef4444":"#10b981")}
         </div>
 
         {/* Completitud de tareas últimos 7 días */}
