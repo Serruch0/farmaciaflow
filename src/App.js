@@ -969,6 +969,72 @@ export default function App(){
     )
   }
 
+    // ── RENDER HISTORIAL ─────────────────────────────────────────
+  const renderHistorial = () => {
+    if(editingHistorialDay){
+      const d=editingHistorialDay
+      const updateH=(turno,key,value)=>setEditingHistorialDay(prev=>prev?{...prev,turnos:{...prev.turnos,[turno]:{...(prev.turnos?.[turno]||emptyTurno()),[key]:value}}}:null)
+      const HCB=({label,checked,onChange})=>(<button onClick={()=>onChange(!checked)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:checked?"#d1fae5":"#fff",border:`2px solid ${checked?"#10b981":"#e2e8f0"}`,borderRadius:10,cursor:"pointer",fontFamily:"inherit",fontSize:14,color:checked?"#065f46":"#475569",fontWeight:checked?600:400,width:"100%",textAlign:"left"}}><span style={{fontSize:18}}>{checked?"✅":"⬜"}</span>{label}</button>)
+      const td=d.turnos?.[selectedDayTurno]||emptyTurno()
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}><button onClick={()=>setEditingHistorialDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Cancelar</button><h2 style={{fontSize:16,fontWeight:800,color:"#1e293b",flex:1}}>✏️ Editar jornada</h2></div>
+          <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
+          <Card><SectionTitle icon="📋">Datos del turno</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:10}}><select value={td.responsable||""} onChange={e=>updateH(selectedDayTurno,"responsable",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}><option value="">Responsable...</option>{EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}</select><textarea value={td.notaTraspaso||""} onChange={e=>updateH(selectedDayTurno,"notaTraspaso",e.target.value)} placeholder="Nota de traspaso..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} /></div></Card>
+          <Card><SectionTitle icon="📦">Pedidos</SectionTitle>{(td.pedidos||[]).map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:10}}><div style={{display:"flex",flexDirection:"column",gap:6}}><input value={p.proveedor||""} onChange={e=>{const arr=[...td.pedidos];arr[i]={...arr[i],proveedor:e.target.value};updateH(selectedDayTurno,"pedidos",arr)}} placeholder="Proveedor" style={{...inputStyle,width:"100%",boxSizing:"border-box"}} /><select value={p.estado||"Recibido"} onChange={e=>{const arr=[...td.pedidos];arr[i]={...arr[i],estado:e.target.value};updateH(selectedDayTurno,"pedidos",arr)}} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>{ESTADOS_PEDIDO.map(o=><option key={o} value={o}>{o}</option>)}</select><button onClick={()=>updateH(selectedDayTurno,"pedidos",td.pedidos.filter((_,j)=>j!==i))} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#ef4444",alignSelf:"flex-start"}}>🗑 Eliminar</button></div></div>))}<button onClick={()=>updateH(selectedDayTurno,"pedidos",[...(td.pedidos||[]),{id:Date.now(),proveedor:"",estado:"Recibido"}])} style={addBtnStyle}>+ Añadir pedido</button></Card>
+          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><HCB label="Limpieza" checked={td.limpieza?.hecho||false} onChange={v=>updateH(selectedDayTurno,"limpieza",{...td.limpieza,hecho:v})} /><HCB label="Repuesto desde fuera" checked={td.repuestoFuera||false} onChange={v=>updateH(selectedDayTurno,"repuestoFuera",v)} /><HCB label="Repuesto desde dentro" checked={td.repuestoDentro||false} onChange={v=>updateH(selectedDayTurno,"repuestoDentro",v)} /><HCB label="Almacén arreglado" checked={td.almacenArreglado||false} onChange={v=>updateH(selectedDayTurno,"almacenArreglado",v)} /><HCB label="Ordenado el almacén" checked={td.ordenadoAlmacen||false} onChange={v=>updateH(selectedDayTurno,"ordenadoAlmacen",v)} /><HCB label="Bajado cajas" checked={td.bajadoCajas||false} onChange={v=>updateH(selectedDayTurno,"bajadoCajas",v)} /><HCB label="Control de stocks" checked={td.stocks||false} onChange={v=>updateH(selectedDayTurno,"stocks",v)} /><HCB label="Revisión de caducidades" checked={td.caducidades||false} onChange={v=>updateH(selectedDayTurno,"caducidades",v)} /></div></Card>
+          <div style={{display:"flex",gap:10}}><button onClick={()=>setEditingHistorialDay(null)} style={{flex:1,padding:12,border:"2px solid #e2e8f0",borderRadius:10,background:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:600,cursor:"pointer",color:"#64748b"}}>Cancelar</button><button onClick={()=>saveHistorialDay(d)} style={{flex:2,padding:12,border:"none",borderRadius:10,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Guardar cambios</button></div>
+        </div>
+      )
+    }
+
+    if(selectedDay){
+      const d=selectedDay
+      const td=d.turnos?.[selectedDayTurno]||emptyTurno()
+      const tareasDone=[td.stocks,td.caducidades,td.almacenArreglado,td.repuestoFuera,td.repuestoDentro,td.ordenadoAlmacen,td.bajadoCajas,td.limpieza?.hecho].filter(Boolean).length
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>setSelectedDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button><h2 style={{fontSize:14,fontWeight:800,color:"#1e293b",flex:1}}>{d.fecha}</h2><button onClick={()=>setEditingHistorialDay({...d})} style={{background:"#eff6ff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#3b82f6"}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>deleteDay(d.fechaKey)} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#ef4444"}}>🗑</button>}</div>
+          <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
+          <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/8`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{(td.equipoPresente||[]).length>0&&<div style={{marginTop:10,fontSize:13,color:"#64748b"}}>👥 {td.equipoPresente.join(", ")}</div>}{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
+          {(td.pedidos||[]).length>0&&<Card><SectionTitle icon="📦">Pedidos</SectionTitle>{td.pedidos.map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:8}}><div style={{fontWeight:700,fontSize:14}}>{p.proveedor}</div>{p.descripcion&&<div style={{fontSize:13,color:"#64748b"}}>{p.descripcion}</div>}<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}><Badge text={p.estado} color={colorEstado[p.estado]||"#6366f1"} /></div></div>))}</Card>}
+          {(td.incidencias||[]).length>0&&<Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{td.incidencias.map((inc,i)=>(<div key={i} style={{padding:"10px 14px",background:inc.resuelta?"#f0fdf4":"#fffbeb",borderRadius:10,marginBottom:8,borderLeft:`3px solid ${inc.resuelta?"#10b981":"#f59e0b"}`}}><div style={{fontWeight:700,color:inc.resuelta?"#065f46":"#92400e",fontSize:14}}>{inc.tipo}{inc.resuelta?" ✓":""}</div><div style={{fontSize:13,color:"#64748b"}}>{inc.descripcion}</div></div>))}</Card>}
+          {((td.encargos||[]).length+(td.vacunas||[]).length+(td.formulasMagistrales||[]).length)>0&&<Card><SectionTitle icon="💊">Encargos y laboratorios</SectionTitle>{(td.encargos||[]).map((e,i)=><div key={i} style={{padding:"8px 12px",background:"#f8fafc",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>🧪 {e.descripcion}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{e.cliente&&<Badge text={`👤 ${e.cliente}`} color="#6366f1" />}{e.estado&&<Badge text={e.estado} color="#f59e0b" />}</div></div>)}{(td.vacunas||[]).map((v,i)=><div key={i} style={{padding:"8px 12px",background:"#eff6ff",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>💉 {v.vacuna}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{v.cliente&&<Badge text={`👤 ${v.cliente}`} color="#3b82f6" />}{v.estado&&<Badge text={v.estado} color="#f59e0b" />}</div></div>)}{(td.formulasMagistrales||[]).map((f,i)=><div key={i} style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>⚗️ {f.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{f.cliente&&<Badge text={`👤 ${f.cliente}`} color="#10b981" />}{f.laboratorio&&<Badge text={`🏥 ${f.laboratorio}`} color="#6366f1" />}{f.estado&&<Badge text={f.estado} color="#f59e0b" />}</div></div>)}</Card>}
+          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[{label:"Limpieza",done:td.limpieza?.hecho},{label:"Repuesto fuera",done:td.repuestoFuera},{label:"Repuesto dentro",done:td.repuestoDentro},{label:"Almacén arreglado",done:td.almacenArreglado},{label:"Ordenado almacén",done:td.ordenadoAlmacen},{label:"Bajado cajas",done:td.bajadoCajas},{label:"Control stocks",done:td.stocks},{label:"Caducidades",done:td.caducidades},{label:"Tarjetas",done:td.tarjetas},{label:"Gestión recetas",done:td.gestionRecetas}].map(({label,done})=>(<div key={label} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done?"#065f46":"#94a3b8"}}><span>{done?"✅":"⬜"}</span>{label}</div>))}</div></Card>
+        </div>
+      )
+    }
+
+    return (
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>📋 Historial</h2>
+        <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Buscar por fecha, responsable, proveedor..." style={{...inputStyle,width:"100%",boxSizing:"border-box"}} />
+        {filteredHistorial.length===0&&<EmptyState text="No hay jornadas guardadas" />}
+        {filteredHistorial.map(day=>(
+          <Card key={day.fechaKey} style={{borderLeft:"4px solid #6366f1",cursor:"pointer"}}>
+            <div onClick={()=>setSelectedDay(day)}>
+              <div style={{fontWeight:700,color:"#6366f1",fontSize:14}}>{day.fecha||day.fechaKey}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}}>
+                {["manana","tarde"].map(t=>{
+                  const td=day.turnos?.[t]||emptyTurno()
+                  const labs=[...new Set([...(td.encargos||[]).map(e=>e.cliente).filter(Boolean),...(td.formulasMagistrales||[]).map(f=>f.laboratorio).filter(Boolean),...(td.vacunas||[]).map(v=>v.vacuna).filter(Boolean)])]
+                  return(<div key={t} style={{background:t==="manana"?"#fffbeb":"#eef2ff",borderRadius:10,padding:"8px 10px",border:`1px solid ${t==="manana"?"#fde68a":"#c7d2fe"}`}}>
+                    <div style={{fontSize:11,fontWeight:700,color:t==="manana"?"#92400e":"#4338ca",marginBottom:4}}>{t==="manana"?"☀️ Mañana":"🌙 Tarde"}</div>
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}><Badge text={`📦${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️${(td.incidencias||[]).length}`} color="#f59e0b" /></div>
+                    {td.responsable&&<div style={{fontSize:11,color:"#64748b",marginTop:4}}>👤 {td.responsable}</div>}
+                    {labs.length>0&&<div style={{fontSize:11,color:"#6366f1",marginTop:4}}>🏥 {labs.slice(0,2).join(", ")}</div>}
+                  </div>)
+                })}
+              </div>
+              <div style={{marginTop:8,fontSize:12,color:"#a5b4fc",fontWeight:600}}>Toca para ver el detalle →</div>
+            </div>
+            {isAdmin&&<button onClick={()=>deleteDay(day.fechaKey)} style={{marginTop:10,background:"#fee2e2",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#ef4444"}}>🗑 Borrar jornada</button>}
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
     const renderKPIs = () => {
     const last30 = historial.slice(0,30)
     const last7  = historial.slice(0,7)
