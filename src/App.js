@@ -234,9 +234,15 @@ const todayLabel = () => new Date().toLocaleDateString("es-ES",{weekday:"long",y
 const emptyTurno = () => ({
   pedidos:[],incidencias:[],encargos:[],vacunas:[],formulasMagistrales:[],
   limpieza:{zonas:[],hecho:false,notas:""},
-  stocks:false,caducidades:false,almacenArreglado:false,
-  repuestoFuera:false,repuestoDentro:false,ordenadoAlmacen:false,bajadoCajas:false,
-  tarjetas:false,
+  stocks:false,stocksQuien:"",
+  caducidades:false,caducidadesQuien:"",
+  almacenArreglado:false,almacenArregladoQuien:"",
+  repuestoFuera:false,repuestoFueraQuien:"",
+  repuestoDentro:false,repuestoDentroQuien:"",
+  ordenadoAlmacen:false,ordenadoAlmacenQuien:"",
+  bajadoCajasGenericos:false,bajadoCajasGenericosQuien:"",
+  bajadoCajasParafarmacia:false,bajadoCajasParafarmaciaQuien:"",
+  tarjetas:false,tarjetasQuien:"",
   gestionRecetas:false,gestionRecetasQuien:"",
   responsable:"",equipoPresente:[],notaTraspaso:"",
   temperatura:null,
@@ -566,7 +572,7 @@ export default function App(){
     {id:"tareas",label:"✅ Tareas"},
     {id:"marca",label:"🏷️ Marca"},
     {id:"historial",label:"📋 Historial"},
-    ...(isAdmin?[{id:"kpis",label:"📊 KPIs"},{id:"admin",label:"👑 Admin"}]:[]),
+    ...(isAdmin?[{id:"admin",label:"👑 Admin"}]:[]),
   ]
 
   // ── RENDER RESUMEN ──────────────────────────────────────────
@@ -892,84 +898,132 @@ export default function App(){
 
   // ── RENDER TAREAS ────────────────────────────────────────────
   const renderTareas = () => {
-    const tareasDone = [turnoData.stocks,turnoData.caducidades,turnoData.almacenArreglado,turnoData.repuestoFuera,turnoData.repuestoDentro,turnoData.ordenadoAlmacen,turnoData.bajadoCajas,turnoData.limpieza?.hecho,turnoData.tarjetas,turnoData.gestionRecetas].filter(Boolean).length
-    const pct = Math.round((tareasDone/10)*100)
+    const tareasDone = [
+      turnoData.stocks, turnoData.caducidades, turnoData.almacenArreglado,
+      turnoData.repuestoFuera, turnoData.repuestoDentro, turnoData.ordenadoAlmacen,
+      turnoData.bajadoCajasGenericos, turnoData.bajadoCajasParafarmacia,
+      turnoData.limpieza?.hecho, turnoData.tarjetas, turnoData.gestionRecetas
+    ].filter(Boolean).length
+    const pct = Math.round((tareasDone/11)*100)
+
+    const renderCheckTarea = (label, key, quienKey) => {
+      const checked = turnoData[key]||false
+      const quien = turnoData[quienKey]||""
+      return (
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <CheckBox label={label} checked={checked} onChange={v=>updateTurno(key,v)} />
+          {checked&&(
+            <div style={{paddingLeft:14}}>
+              <select
+                value={quien}
+                onChange={e=>updateTurno(quienKey,e.target.value)}
+                style={{...inputStyle,width:"100%",boxSizing:"border-box",fontSize:13,padding:"7px 10px"}}
+              >
+                <option value="">Quien lo ha hecho...</option>
+                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
+              </select>
+              {quien&&<div style={{fontSize:11,color:"#10b981",fontWeight:600,marginTop:3}}>Realizado por {quien}</div>}
+            </div>
+          )}
+        </div>
+      )
+    }
+
     return (
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>✅ Tareas del día</h2>
+        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>Tareas del dia</h2>
         <TurnoSelector turno={activeTurno} onChange={setActiveTurno} />
+
         <Card>
           <SectionTitle icon="📊">Progreso</SectionTitle>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-            <span style={{color:"#64748b",fontSize:14}}>{tareasDone} de 10 completadas</span>
+            <span style={{color:"#64748b",fontSize:14}}>{tareasDone} de 11</span>
             <span style={{color:"#6366f1",fontWeight:700,fontSize:14}}>{pct}%</span>
           </div>
           <div style={{background:"#e2e8f0",borderRadius:20,height:12,overflow:"hidden"}}>
             <div style={{width:`${pct}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#10b981)",borderRadius:20,transition:"width 0.4s"}} />
           </div>
         </Card>
+
         <Card>
           <SectionTitle icon="🧹">Limpieza</SectionTitle>
-          <CheckBox label="Se ha limpiado" checked={turnoData.limpieza?.hecho||false} onChange={v=>updateTurno("limpieza",{...turnoData.limpieza,hecho:v})} />
-          {turnoData.limpieza?.hecho&&(
-            <div style={{marginTop:12}}>
-              <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:8}}>Zonas:</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
-                {ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <CheckBox label="Se ha limpiado" checked={turnoData.limpieza?.hecho||false} onChange={v=>updateTurno("limpieza",{...turnoData.limpieza,hecho:v})} />
+            {turnoData.limpieza?.hecho&&(
+              <div style={{paddingLeft:14}}>
+                <div style={{fontSize:13,fontWeight:600,color:"#64748b",marginBottom:6}}>Zonas:</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+                  {ZONAS_LIMPIEZA.map(zona=>(<Pill key={zona} label={zona} active={(turnoData.limpieza?.zonas||[]).includes(zona)} onClick={()=>toggleLimpiezaZona(zona)} />))}
+                </div>
+                <textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
               </div>
-              <textarea value={turnoData.limpieza?.notas||""} onChange={e=>updateTurno("limpieza",{...turnoData.limpieza,notas:e.target.value})} placeholder="Notas de limpieza..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} />
-            </div>
-          )}
-        </Card>
-        <Card>
-          <SectionTitle icon="📦">Almacén y stock</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <CheckBox label="Repuesto desde fuera" checked={turnoData.repuestoFuera||false} onChange={v=>updateTurno("repuestoFuera",v)} />
-            <CheckBox label="Repuesto desde dentro" checked={turnoData.repuestoDentro||false} onChange={v=>updateTurno("repuestoDentro",v)} />
-            <CheckBox label="Almacén arreglado" checked={turnoData.almacenArreglado||false} onChange={v=>updateTurno("almacenArreglado",v)} />
-            <CheckBox label="Ordenado el almacén" checked={turnoData.ordenadoAlmacen||false} onChange={v=>updateTurno("ordenadoAlmacen",v)} />
-            <CheckBox label="Bajado cajas" checked={turnoData.bajadoCajas||false} onChange={v=>updateTurno("bajadoCajas",v)} />
+            )}
           </div>
         </Card>
+
         <Card>
-          <SectionTitle icon="📋">Control y revisión</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            <CheckBox label="Control de stocks" checked={turnoData.stocks||false} onChange={v=>updateTurno("stocks",v)} />
-            <CheckBox label="Revisión de caducidades" checked={turnoData.caducidades||false} onChange={v=>updateTurno("caducidades",v)} />
-            <CheckBox label="Comprobar tarjetas" checked={turnoData.tarjetas||false} onChange={v=>updateTurno("tarjetas",v)} />
+          <SectionTitle icon="📦">Almacen y stock</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {renderCheckTarea("Repuesto desde fuera","repuestoFuera","repuestoFueraQuien")}
+            {renderCheckTarea("Repuesto desde dentro","repuestoDentro","repuestoDentroQuien")}
+            {renderCheckTarea("Almacen arreglado","almacenArreglado","almacenArregladoQuien")}
+            {renderCheckTarea("Ordenado el almacen","ordenadoAlmacen","ordenadoAlmacenQuien")}
           </div>
         </Card>
+
         <Card>
-          <SectionTitle icon="📄">Gestión de recetas</SectionTitle>
-          <CheckBox label="Gestión de recetas realizada" checked={turnoData.gestionRecetas||false} onChange={v=>updateTurno("gestionRecetas",v)} />
-          {turnoData.gestionRecetas&&(
-            <div style={{marginTop:10}}>
-              <label style={{fontSize:12,fontWeight:600,color:"#64748b",marginBottom:6,display:"block"}}>¿Quién lo ha gestionado?</label>
-              <select value={turnoData.gestionRecetasQuien||""} onChange={e=>updateTurno("gestionRecetasQuien",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>
-                <option value="">Seleccionar...</option>
-                {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          )}
+          <SectionTitle icon="📦">Bajar cajas</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {renderCheckTarea("Bajado cajas genericos","bajadoCajasGenericos","bajadoCajasGenericosQuien")}
+            {renderCheckTarea("Bajado cajas parafarmacia","bajadoCajasParafarmacia","bajadoCajasParafarmaciaQuien")}
+          </div>
         </Card>
+
         <Card>
-          <SectionTitle icon="🌡️">Temperatura frigorífico</SectionTitle>
+          <SectionTitle icon="📋">Control y revision</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {renderCheckTarea("Control de stocks","stocks","stocksQuien")}
+            {renderCheckTarea("Revision de caducidades","caducidades","caducidadesQuien")}
+            {renderCheckTarea("Comprobar tarjetas","tarjetas","tarjetasQuien")}
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle icon="📄">Gestion de recetas</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <CheckBox label="Gestion de recetas realizada" checked={turnoData.gestionRecetas||false} onChange={v=>updateTurno("gestionRecetas",v)} />
+            {turnoData.gestionRecetas&&(
+              <div style={{paddingLeft:14}}>
+                <select value={turnoData.gestionRecetasQuien||""} onChange={e=>updateTurno("gestionRecetasQuien",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box",fontSize:13,padding:"7px 10px"}}>
+                  <option value="">Quien lo ha hecho...</option>
+                  {EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}
+                </select>
+                {turnoData.gestionRecetasQuien&&<div style={{fontSize:11,color:"#10b981",fontWeight:600,marginTop:3}}>Realizado por {turnoData.gestionRecetasQuien}</div>}
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle icon="🌡️">Temperatura frigorifico</SectionTitle>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="Ej: 4.5" style={{...inputStyle,flex:1,boxSizing:"border-box"}} />
-            <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>°C</span>
-            {turnoData.temperatura&&(<Badge text={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"✓ OK":"⚠️ Fuera de rango"} color={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#10b981":"#ef4444"} />)}
+            <input type="number" step="0.1" value={turnoData.temperatura||""} onChange={e=>updateTurno("temperatura",e.target.value)} placeholder="4.5" style={{...inputStyle,flex:1,boxSizing:"border-box"}} />
+            <span style={{fontSize:14,color:"#64748b",fontWeight:600}}>C</span>
+            {turnoData.temperatura&&(
+              <Badge text={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"OK":"FUERA"} color={parseFloat(turnoData.temperatura)>=2&&parseFloat(turnoData.temperatura)<=8?"#10b981":"#ef4444"} />
+            )}
           </div>
-          <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2°C – 8°C</div>
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:6}}>Rango correcto: 2 a 8 grados</div>
         </Card>
-        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px #6366f144"}}>
-          {saving?"⏳ Guardando...":"💾 Guardar turno"}
+
+        <button onClick={saveDay} disabled={saving} style={{background:saving?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",border:"none",borderRadius:12,padding:"14px 20px",fontSize:15,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>
+          {saving?"Guardando...":"Guardar turno"}
         </button>
-        {savedMsg&&<div style={{textAlign:"center",color:savedMsg.startsWith("✓")?"#10b981":"#ef4444",fontWeight:700,fontSize:14}}>{savedMsg}</div>}
+        {savedMsg&&<div style={{textAlign:"center",color:"#10b981",fontWeight:700}}>{savedMsg}</div>}
       </div>
     )
   }
 
-    // ── RENDER HISTORIAL ─────────────────────────────────────────
   const renderHistorial = () => {
     if(editingHistorialDay){
       const d=editingHistorialDay
@@ -982,7 +1036,7 @@ export default function App(){
           <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
           <Card><SectionTitle icon="📋">Datos del turno</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:10}}><select value={td.responsable||""} onChange={e=>updateH(selectedDayTurno,"responsable",e.target.value)} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}><option value="">Responsable...</option>{EQUIPO.map(n=><option key={n} value={n}>{n}</option>)}</select><textarea value={td.notaTraspaso||""} onChange={e=>updateH(selectedDayTurno,"notaTraspaso",e.target.value)} placeholder="Nota de traspaso..." rows={2} style={{...inputStyle,width:"100%",boxSizing:"border-box",resize:"vertical"}} /></div></Card>
           <Card><SectionTitle icon="📦">Pedidos</SectionTitle>{(td.pedidos||[]).map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:10}}><div style={{display:"flex",flexDirection:"column",gap:6}}><input value={p.proveedor||""} onChange={e=>{const arr=[...td.pedidos];arr[i]={...arr[i],proveedor:e.target.value};updateH(selectedDayTurno,"pedidos",arr)}} placeholder="Proveedor" style={{...inputStyle,width:"100%",boxSizing:"border-box"}} /><select value={p.estado||"Recibido"} onChange={e=>{const arr=[...td.pedidos];arr[i]={...arr[i],estado:e.target.value};updateH(selectedDayTurno,"pedidos",arr)}} style={{...inputStyle,width:"100%",boxSizing:"border-box"}}>{ESTADOS_PEDIDO.map(o=><option key={o} value={o}>{o}</option>)}</select><button onClick={()=>updateH(selectedDayTurno,"pedidos",td.pedidos.filter((_,j)=>j!==i))} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#ef4444",alignSelf:"flex-start"}}>🗑 Eliminar</button></div></div>))}<button onClick={()=>updateH(selectedDayTurno,"pedidos",[...(td.pedidos||[]),{id:Date.now(),proveedor:"",estado:"Recibido"}])} style={addBtnStyle}>+ Añadir pedido</button></Card>
-          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><HCB label="Limpieza" checked={td.limpieza?.hecho||false} onChange={v=>updateH(selectedDayTurno,"limpieza",{...td.limpieza,hecho:v})} /><HCB label="Repuesto desde fuera" checked={td.repuestoFuera||false} onChange={v=>updateH(selectedDayTurno,"repuestoFuera",v)} /><HCB label="Repuesto desde dentro" checked={td.repuestoDentro||false} onChange={v=>updateH(selectedDayTurno,"repuestoDentro",v)} /><HCB label="Almacén arreglado" checked={td.almacenArreglado||false} onChange={v=>updateH(selectedDayTurno,"almacenArreglado",v)} /><HCB label="Ordenado el almacén" checked={td.ordenadoAlmacen||false} onChange={v=>updateH(selectedDayTurno,"ordenadoAlmacen",v)} /><HCB label="Bajado cajas" checked={td.bajadoCajas||false} onChange={v=>updateH(selectedDayTurno,"bajadoCajas",v)} /><HCB label="Control de stocks" checked={td.stocks||false} onChange={v=>updateH(selectedDayTurno,"stocks",v)} /><HCB label="Revisión de caducidades" checked={td.caducidades||false} onChange={v=>updateH(selectedDayTurno,"caducidades",v)} /></div></Card>
+          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:8}}><HCB label="Limpieza" checked={td.limpieza?.hecho||false} onChange={v=>updateH(selectedDayTurno,"limpieza",{...(td.limpieza||{}),hecho:v})} /><HCB label="Repuesto desde fuera" checked={td.repuestoFuera||false} onChange={v=>updateH(selectedDayTurno,"repuestoFuera",v)} /><HCB label="Repuesto desde dentro" checked={td.repuestoDentro||false} onChange={v=>updateH(selectedDayTurno,"repuestoDentro",v)} /><HCB label="Almacen arreglado" checked={td.almacenArreglado||false} onChange={v=>updateH(selectedDayTurno,"almacenArreglado",v)} /><HCB label="Ordenado el almacen" checked={td.ordenadoAlmacen||false} onChange={v=>updateH(selectedDayTurno,"ordenadoAlmacen",v)} /><HCB label="Cajas genericos" checked={td.bajadoCajasGenericosGenericos||false} onChange={v=>updateH(selectedDayTurno,"bajadoCajasGenericos",v)} /><HCB label="Cajas parafarmacia" checked={td.bajadoCajasGenericosParafarmacia||false} onChange={v=>updateH(selectedDayTurno,"bajadoCajasParafarmacia",v)} /><HCB label="Control de stocks" checked={td.stocks||false} onChange={v=>updateH(selectedDayTurno,"stocks",v)} /><HCB label="Revision de caducidades" checked={td.caducidades||false} onChange={v=>updateH(selectedDayTurno,"caducidades",v)} /><HCB label="Tarjetas" checked={td.tarjetas||false} onChange={v=>updateH(selectedDayTurno,"tarjetas",v)} /></div></Card>
           <div style={{display:"flex",gap:10}}><button onClick={()=>setEditingHistorialDay(null)} style={{flex:1,padding:12,border:"2px solid #e2e8f0",borderRadius:10,background:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:600,cursor:"pointer",color:"#64748b"}}>Cancelar</button><button onClick={()=>saveHistorialDay(d)} style={{flex:2,padding:12,border:"none",borderRadius:10,background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer"}}>💾 Guardar cambios</button></div>
         </div>
       )
@@ -991,16 +1045,16 @@ export default function App(){
     if(selectedDay){
       const d=selectedDay
       const td=d.turnos?.[selectedDayTurno]||emptyTurno()
-      const tareasDone=[td.stocks,td.caducidades,td.almacenArreglado,td.repuestoFuera,td.repuestoDentro,td.ordenadoAlmacen,td.bajadoCajas,td.limpieza?.hecho].filter(Boolean).length
+      const tareasDone=[td.stocks,td.caducidades,td.almacenArreglado,td.repuestoFuera,td.repuestoDentro,td.ordenadoAlmacen,td.bajadoCajasGenericosGenericos,td.bajadoCajasGenericosParafarmacia,td.limpieza?.hecho,td.tarjetas,td.gestionRecetas].filter(Boolean).length
       return (
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>setSelectedDay(null)} style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#64748b"}}>← Volver</button><h2 style={{fontSize:14,fontWeight:800,color:"#1e293b",flex:1}}>{d.fecha}</h2><button onClick={()=>setEditingHistorialDay({...d})} style={{background:"#eff6ff",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#3b82f6"}}>✏️ Editar</button>{isAdmin&&<button onClick={()=>deleteDay(d.fechaKey)} style={{background:"#fee2e2",border:"none",borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#ef4444"}}>🗑</button>}</div>
           <TurnoSelector turno={selectedDayTurno} onChange={setSelectedDayTurno} />
-          <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/8`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{(td.equipoPresente||[]).length>0&&<div style={{marginTop:10,fontSize:13,color:"#64748b"}}>👥 {td.equipoPresente.join(", ")}</div>}{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
+          <Card><SectionTitle icon="📋">Resumen</SectionTitle><div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{td.responsable&&<Badge text={td.responsable} color="#8b5cf6" />}<Badge text={`✅ ${tareasDone}/11`} color="#10b981" /><Badge text={`📦 ${(td.pedidos||[]).length}`} color="#3b82f6" /><Badge text={`⚠️ ${(td.incidencias||[]).length}`} color="#f59e0b" /></div>{(td.equipoPresente||[]).length>0&&<div style={{marginTop:10,fontSize:13,color:"#64748b"}}>👥 {td.equipoPresente.join(", ")}</div>}{td.notaTraspaso&&<div style={{marginTop:10,padding:"8px 12px",background:"#fffbeb",borderRadius:8,fontSize:13,color:"#92400e"}}>📝 {td.notaTraspaso}</div>}{td.temperatura&&<div style={{marginTop:8}}><Badge text={`🌡️ ${td.temperatura}°C`} color={parseFloat(td.temperatura)>=2&&parseFloat(td.temperatura)<=8?"#10b981":"#ef4444"} /></div>}</Card>
           {(td.pedidos||[]).length>0&&<Card><SectionTitle icon="📦">Pedidos</SectionTitle>{td.pedidos.map((p,i)=>(<div key={i} style={{padding:"10px 14px",background:"#f8fafc",borderRadius:10,marginBottom:8}}><div style={{fontWeight:700,fontSize:14}}>{p.proveedor}</div>{p.descripcion&&<div style={{fontSize:13,color:"#64748b"}}>{p.descripcion}</div>}<div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}><Badge text={p.estado} color={colorEstado[p.estado]||"#6366f1"} /></div></div>))}</Card>}
           {(td.incidencias||[]).length>0&&<Card><SectionTitle icon="⚠️">Incidencias</SectionTitle>{td.incidencias.map((inc,i)=>(<div key={i} style={{padding:"10px 14px",background:inc.resuelta?"#f0fdf4":"#fffbeb",borderRadius:10,marginBottom:8,borderLeft:`3px solid ${inc.resuelta?"#10b981":"#f59e0b"}`}}><div style={{fontWeight:700,color:inc.resuelta?"#065f46":"#92400e",fontSize:14}}>{inc.tipo}{inc.resuelta?" ✓":""}</div><div style={{fontSize:13,color:"#64748b"}}>{inc.descripcion}</div></div>))}</Card>}
           {((td.encargos||[]).length+(td.vacunas||[]).length+(td.formulasMagistrales||[]).length)>0&&<Card><SectionTitle icon="💊">Encargos y laboratorios</SectionTitle>{(td.encargos||[]).map((e,i)=><div key={i} style={{padding:"8px 12px",background:"#f8fafc",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>🧪 {e.descripcion}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{e.cliente&&<Badge text={`👤 ${e.cliente}`} color="#6366f1" />}{e.estado&&<Badge text={e.estado} color="#f59e0b" />}</div></div>)}{(td.vacunas||[]).map((v,i)=><div key={i} style={{padding:"8px 12px",background:"#eff6ff",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>💉 {v.vacuna}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{v.cliente&&<Badge text={`👤 ${v.cliente}`} color="#3b82f6" />}{v.estado&&<Badge text={v.estado} color="#f59e0b" />}</div></div>)}{(td.formulasMagistrales||[]).map((f,i)=><div key={i} style={{padding:"8px 12px",background:"#f0fdf4",borderRadius:10,marginBottom:6}}><div style={{fontWeight:700,fontSize:13}}>⚗️ {f.formula}</div><div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>{f.cliente&&<Badge text={`👤 ${f.cliente}`} color="#10b981" />}{f.laboratorio&&<Badge text={`🏥 ${f.laboratorio}`} color="#6366f1" />}{f.estado&&<Badge text={f.estado} color="#f59e0b" />}</div></div>)}</Card>}
-          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[{label:"Limpieza",done:td.limpieza?.hecho},{label:"Repuesto fuera",done:td.repuestoFuera},{label:"Repuesto dentro",done:td.repuestoDentro},{label:"Almacén arreglado",done:td.almacenArreglado},{label:"Ordenado almacén",done:td.ordenadoAlmacen},{label:"Bajado cajas",done:td.bajadoCajas},{label:"Control stocks",done:td.stocks},{label:"Caducidades",done:td.caducidades},{label:"Tarjetas",done:td.tarjetas},{label:"Gestión recetas",done:td.gestionRecetas}].map(({label,done})=>(<div key={label} style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:done?"#065f46":"#94a3b8"}}><span>{done?"✅":"⬜"}</span>{label}</div>))}</div></Card>
+          <Card><SectionTitle icon="✅">Tareas</SectionTitle><div style={{display:"flex",flexDirection:"column",gap:6}}>{[{l:"Limpieza",v:td.limpieza?.hecho,q:null},{l:"Repuesto fuera",v:td.repuestoFuera,q:td.repuestoFueraQuien},{l:"Repuesto dentro",v:td.repuestoDentro,q:td.repuestoDentroQuien},{l:"Almacen arreglado",v:td.almacenArreglado,q:td.almacenArregladoQuien},{l:"Ordenado almacen",v:td.ordenadoAlmacen,q:td.ordenadoAlmacenQuien},{l:"Cajas genericos",v:td.bajadoCajasGenericosGenericos,q:td.bajadoCajasGenericosGenericosQuien},{l:"Cajas parafarmacia",v:td.bajadoCajasGenericosParafarmacia,q:td.bajadoCajasGenericosParafarmaciaQuien},{l:"Control stocks",v:td.stocks,q:td.stocksQuien},{l:"Caducidades",v:td.caducidades,q:td.caducidadesQuien},{l:"Tarjetas",v:td.tarjetas,q:td.tarjetasQuien},{l:"Gestion recetas",v:td.gestionRecetas,q:td.gestionRecetasQuien}].map(({l,v,q})=>(<div key={l} style={{marginBottom:3}}><div style={{display:"flex",alignItems:"center",gap:8,fontSize:14,color:v?"#065f46":"#94a3b8"}}><span>{v?"✅":"⬜"}</span>{l}{v&&q&&<span style={{fontSize:11,color:"#10b981",fontWeight:600}}>- {q}</span>}</div></div>))}</div></Card>
         </div>
       )
     }
@@ -1035,192 +1089,7 @@ export default function App(){
     )
   }
 
-    const renderKPIs = () => {
-    const last30 = historial.slice(0,30)
-    const last7  = historial.slice(0,7)
-    const thisMonth = historial.filter(d=>d.fechaKey?.slice(0,7)===todayKey().slice(0,7))
-
-    // Incidencias
-    const allIncidencias = last30.flatMap(d=>[
-      ...(d.turnos?.manana?.incidencias||[]).map(i=>({...i,fecha:d.fecha,turno:"manana"})),
-      ...(d.turnos?.tarde?.incidencias||[]).map(i=>({...i,fecha:d.fecha,turno:"tarde"}))
-    ])
-    const incTotal = allIncidencias.length
-    const incResueltas = allIncidencias.filter(i=>i.resuelta).length
-    const incPorTipo = {}
-    allIncidencias.forEach(i=>{ incPorTipo[i.tipo]=(incPorTipo[i.tipo]||0)+1 })
-    const topTipo = Object.entries(incPorTipo).sort((a,b)=>b[1]-a[1]).slice(0,3)
-
-    // Pedidos
-    const allPedidos = last30.flatMap(d=>[
-      ...(d.turnos?.manana?.pedidos||[]),
-      ...(d.turnos?.tarde?.pedidos||[])
-    ])
-    const pedTotal = allPedidos.length
-    const pedConIncidencia = allPedidos.filter(p=>p.incidencia).length
-    const pedPorProv = {}
-    allPedidos.forEach(p=>{ if(p.proveedor) pedPorProv[p.proveedor]=(pedPorProv[p.proveedor]||0)+1 })
-    const topProv = Object.entries(pedPorProv).sort((a,b)=>b[1]-a[1]).slice(0,5)
-
-    // Tareas — % completado por día últimos 7
-    const tareasKeys = ["stocks","caducidades","almacenArreglado","repuestoFuera","repuestoDentro","ordenadoAlmacen","bajadoCajas","tarjetas","gestionRecetas"]
-    const tareasCompletitud = last7.map(d=>{
-      let done=0, total=0
-      ;["manana","tarde"].forEach(t=>{
-        const td=d.turnos?.[t]||{}
-        tareasKeys.forEach(k=>{ total++; if(td[k]) done++ })
-        if(td.limpieza?.hecho) done++
-        total++
-      })
-      return {fecha:d.fechaKey?.slice(8)+"/"+d.fechaKey?.slice(5,7), pct:total>0?Math.round((done/total)*100):0}
-    }).reverse()
-
-    // Persona más activa en tareas
-    const personaTareas = {}
-    last30.forEach(d=>{
-      ;["manana","tarde"].forEach(t=>{
-        const td=d.turnos?.[t]||{}
-        if(td.responsable) personaTareas[td.responsable]=(personaTareas[td.responsable]||0)+1
-      })
-    })
-    const topPersonas = Object.entries(personaTareas).sort((a,b)=>b[1]-a[1]).slice(0,5)
-
-    // Temperaturas fuera de rango
-    const tempFueraRango = last30.flatMap(d=>[
-      ...(d.turnos?.manana?.temperatura?[{temp:d.turnos.manana.temperatura,fecha:d.fecha,turno:"Mañana"}]:[]),
-      ...(d.turnos?.tarde?.temperatura?[{temp:d.turnos.tarde.temperatura,fecha:d.fecha,turno:"Tarde"}]:[])
-    ]).filter(t=>parseFloat(t.temp)<2||parseFloat(t.temp)>8)
-
-    const renderStatCard = (icon,value,label,sub,color) => (
-      <div style={{background:"#fff",borderRadius:14,padding:16,border:`1px solid ${color}33`,textAlign:"center"}}>
-        <div style={{fontSize:22}}>{icon}</div>
-        <div style={{fontSize:28,fontWeight:900,color,marginTop:4}}>{value}</div>
-        <div style={{fontSize:12,fontWeight:700,color:"#64748b",marginTop:2}}>{label}</div>
-        {sub&&<div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{sub}</div>}
-      </div>
-    )
-
-    return (
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <h2 style={{fontSize:18,fontWeight:800,color:"#1e293b"}}>📊 KPIs del equipo</h2>
-        <div style={{fontSize:12,color:"#94a3b8",fontWeight:500,marginTop:-8}}>Últimos 30 días</div>
-
-        {/* Resumen rápido */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {renderStatCard("⚠️",incTotal,"Incidencias",`${incResueltas} resueltas`,"#f59e0b")}
-          {renderStatCard("📦",pedTotal,"Pedidos",`${pedConIncidencia} con incid.`,"#6366f1")}
-          {renderStatCard("✅",topPersonas[0]?.[0]||"—","Más activa",topPersonas[0]?`${topPersonas[0][1]} tareas`:"Sin datos","#10b981")}
-          {renderStatCard("🌡️",tempFueraRango.length,"Temp. fuera rango","últimos 30 días",tempFueraRango.length>0?"#ef4444":"#10b981")}
-        </div>
-
-        {/* Completitud de tareas últimos 7 días */}
-        <Card>
-          <SectionTitle icon="📅">Completitud de tareas — últimos 7 días</SectionTitle>
-          {tareasCompletitud.length===0?<EmptyState text="Sin datos todavía" />:(
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {tareasCompletitud.map((d,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:48,fontSize:12,fontWeight:600,color:"#64748b",flexShrink:0}}>{d.fecha}</div>
-                  <div style={{flex:1,height:10,background:"#f1f5f9",borderRadius:20,overflow:"hidden"}}>
-                    <div style={{width:`${d.pct}%`,height:"100%",background:d.pct>=80?"#10b981":d.pct>=50?"#f59e0b":"#ef4444",borderRadius:20,transition:"width 0.4s"}} />
-                  </div>
-                  <div style={{fontSize:12,fontWeight:800,color:d.pct>=80?"#10b981":d.pct>=50?"#f59e0b":"#ef4444",minWidth:36,textAlign:"right"}}>{d.pct}%</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* Ranking personas por tareas */}
-        <Card>
-          <SectionTitle icon="🏆">Ranking de participación en tareas</SectionTitle>
-          {topPersonas.length===0?<EmptyState text="Sin datos todavía" />:(
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {topPersonas.map(([persona,count],i)=>{
-                const max = topPersonas[0][1]
-                const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"]
-                return (
-                  <div key={persona} style={{display:"flex",alignItems:"center",gap:10}}>
-                    <div style={{fontSize:18,flexShrink:0}}>{medals[i]||"•"}</div>
-                    <div style={{width:70,fontSize:13,fontWeight:600,color:"#1e293b",flexShrink:0}}>{persona}</div>
-                    <div style={{flex:1,height:10,background:"#f1f5f9",borderRadius:20,overflow:"hidden"}}>
-                      <div style={{width:`${Math.round((count/max)*100)}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#818cf8)",borderRadius:20}} />
-                    </div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#6366f1",minWidth:30,textAlign:"right"}}>{count}</div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Card>
-
-        {/* Tipos de incidencias */}
-        {topTipo.length>0&&(
-          <Card>
-            <SectionTitle icon="⚠️">Tipos de incidencia más frecuentes</SectionTitle>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {topTipo.map(([tipo,count])=>(
-                <div key={tipo} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#fffbeb",borderRadius:10,border:"1px solid #fde68a"}}>
-                  <span style={{fontSize:14,fontWeight:600,color:"#92400e"}}>{tipo}</span>
-                  <Badge text={`${count} veces`} color="#f59e0b" />
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {/* Proveedores con más pedidos */}
-        {topProv.length>0&&(
-          <Card>
-            <SectionTitle icon="🏭">Proveedores — volumen de pedidos</SectionTitle>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {topProv.map(([prov,count],i)=>{
-                const max = topProv[0][1]
-                const incidProv = allPedidos.filter(p=>p.proveedor===prov&&p.incidencia).length
-                return (
-                  <div key={prov} style={{padding:"10px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #f1f5f9"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                      <span style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{prov}</span>
-                      <div style={{display:"flex",gap:6}}>
-                        <Badge text={`${count} pedidos`} color="#6366f1" />
-                        {incidProv>0&&<Badge text={`⚠️ ${incidProv}`} color="#ef4444" />}
-                      </div>
-                    </div>
-                    <div style={{height:6,background:"#e2e8f0",borderRadius:20,overflow:"hidden"}}>
-                      <div style={{width:`${Math.round((count/max)*100)}%`,height:"100%",background:"linear-gradient(90deg,#6366f1,#818cf8)",borderRadius:20}} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* Temperaturas fuera de rango */}
-        {tempFueraRango.length>0&&(
-          <Card style={{borderLeft:"4px solid #ef4444"}}>
-            <SectionTitle icon="🌡️">Alertas de temperatura</SectionTitle>
-            {tempFueraRango.map((t,i)=>(
-              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"#fef2f2",borderRadius:10,marginBottom:6,border:"1px solid #fecaca"}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:700,color:"#dc2626"}}>{t.turno}</div>
-                  <div style={{fontSize:12,color:"#94a3b8"}}>{t.fecha}</div>
-                </div>
-                <Badge text={`${t.temp}°C`} color="#ef4444" />
-              </div>
-            ))}
-          </Card>
-        )}
-
-        <div style={{textAlign:"center",fontSize:12,color:"#94a3b8",padding:"8px 0"}}>
-          Datos basados en las últimas 30 jornadas registradas
-        </div>
-      </div>
-    )
-  }
-
-    // ── RENDER ADMIN ─────────────────────────────────────────────
-  const renderAdmin = () => {
+    const renderAdmin = () => {
     if(!isAdmin) return null
     const last7 = historial.slice(0,7)
     const tempData = historial.slice(0,14).flatMap(d=>
@@ -1275,7 +1144,7 @@ export default function App(){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             {["manana","tarde"].map(t=>{
               const td=dayData.turnos?.[t]||emptyTurno()
-              const tareas=[(td.stocks||[]).length>0,(td.caducidades||[]).length>0,(td.almacenArreglado||[]).length>0,(td.repuestoFuera||[]).length>0,(td.repuestoDentro||[]).length>0,(td.ordenadoAlmacen||[]).length>0,(td.bajadoCajas||[]).length>0,(td.limpieza?.hecho||[]).length>0,(td.tarjetas||[]).length>0,(td.gestionRecetas||[]).length>0].filter(Boolean).length
+              const tareas=[(td.stocks||[]).length>0,(td.caducidades||[]).length>0,(td.almacenArreglado||[]).length>0,(td.repuestoFuera||[]).length>0,(td.repuestoDentro||[]).length>0,(td.ordenadoAlmacen||[]).length>0,(td.bajadoCajasGenericos||[]).length>0,(td.limpieza?.hecho||[]).length>0,(td.tarjetas||[]).length>0,(td.gestionRecetas||[]).length>0].filter(Boolean).length
               return(
                 <div key={t} style={{background:t==="manana"?"#fffbeb":"#eef2ff",borderRadius:12,padding:14,border:`1px solid ${t==="manana"?"#fde68a":"#c7d2fe"}`}}>
                   <div style={{fontWeight:700,color:t==="manana"?"#92400e":"#4338ca",fontSize:13,marginBottom:8}}>{t==="manana"?"☀️ Mañana":"🌙 Tarde"}</div>
@@ -1673,7 +1542,7 @@ export default function App(){
     )
   }
 
-  const tabContent = {resumen:renderResumen,calendario:renderCalendario,pedidos:renderPedidos,incidencias:renderIncidencias,encargos:renderEncargos,tareas:renderTareas,marca:renderMarca,kpis:renderKPIs,historial:renderHistorial,admin:renderAdmin}
+  const tabContent = {resumen:renderResumen,calendario:renderCalendario,pedidos:renderPedidos,incidencias:renderIncidencias,encargos:renderEncargos,tareas:renderTareas,marca:renderMarca,historial:renderHistorial,admin:renderAdmin}
 
   return (
     <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:"#f8fafc",minHeight:"100vh",maxWidth:520,margin:"0 auto",position:"relative"}}>
